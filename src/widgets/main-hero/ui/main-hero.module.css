@@ -1,0 +1,24 @@
+.hero {
+  width: 100vw;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.orbStage {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    min-height: calc(100vh - 88px);
+  }
+}
