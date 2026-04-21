@@ -21,6 +21,8 @@ export default async function LocaleHomeRoute({ params }: LocaleHomeRouteProps) 
       locale={locale}
       heroQuickBar={dict.heroQuickBar}
       typographySection={dict.typographySection}
+      medicalTeamSection={dict.medicalTeamSection}
+      academicPublicationsSection={dict.academicPublicationsSection}
     />
   );
 }

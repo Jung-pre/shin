@@ -38,6 +38,22 @@ export interface TypographySectionMessages {
   slides: TypographySlideMessages[];
 }
 
+export interface MedicalTeamSectionMessages {
+  eyebrow: string;
+  titleLine1: string;
+  titleLine2: string;
+  ctaLabel: string;
+}
+
+export interface AcademicPublicationsSectionMessages {
+  eyebrowEn: string;
+  title: string;
+  description: string;
+  ctaLabel: string;
+  /** 카드 호버 시 글래스 버튼 라벨 */
+  cardViewMore: string;
+}
+
 export interface Dictionary {
   seo: {
     title: string;
@@ -46,6 +62,8 @@ export interface Dictionary {
   main: MainMessages;
   heroQuickBar: HeroQuickBarMessages;
   typographySection: TypographySectionMessages;
+  medicalTeamSection: MedicalTeamSectionMessages;
+  academicPublicationsSection: AcademicPublicationsSectionMessages;
 }
 
 export const dictionaries: Record<Locale, Dictionary> = {
@@ -98,6 +116,20 @@ export const dictionaries: Record<Locale, Dictionary> = {
         },
       ],
     },
+    medicalTeamSection: {
+      eyebrow: "의료진 9인의 경험으로 완성되는 선명한 기준",
+      titleLine1: "당신이 마주할 신세계,",
+      titleLine2: "신세계안과 전문의가 함께합니다",
+      ctaLabel: "신세계 의료진 전체보기 →",
+    },
+    academicPublicationsSection: {
+      eyebrowEn: "Academic Activities and Publications",
+      title: "학술활동 및 논문",
+      description:
+        "수술의 정교함과 안전을 뒷받침하는 학술적 성취와 연구의 기록입니다\n지속적인 논문 발표와 학술 활동을 통해 더 앞선 의료 기준을 증명합니다",
+      ctaLabel: "학술활동 및 논문 전체보기 →",
+      cardViewMore: "View more",
+    },
   },
   en: {
     seo: {
@@ -147,6 +179,20 @@ export const dictionaries: Record<Locale, Dictionary> = {
           lineKo: "환자 중심의 신세계안과",
         },
       ],
+    },
+    medicalTeamSection: {
+      eyebrow: "A clear standard built by 9 specialists",
+      titleLine1: "A new world for your vision,",
+      titleLine2: "guided by Shinsegae Eye specialists",
+      ctaLabel: "View all Shinsegae specialists →",
+    },
+    academicPublicationsSection: {
+      eyebrowEn: "Academic Activities and Publications",
+      title: "Academic activities & publications",
+      description:
+        "A record of scholarly achievement and research that supports surgical precision and safety.\nThrough ongoing publications and academic work, we demonstrate a higher standard of care.",
+      ctaLabel: "View all academic activities & publications →",
+      cardViewMore: "View more",
     },
   },
 };
