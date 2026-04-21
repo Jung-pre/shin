@@ -60,21 +60,55 @@ const TEXT_TRANSITION = {
   ease: [0.22, 1, 0.36, 1] as const,
 };
 
-const ROTATING_TUNE = {
+const GNB_HEIGHT_PX = 92;
+const PERSPECTIVE_PX = 1900;
+const PERSPECTIVE_ORIGIN_Y = 0.42; // 42%
+
+const ROTATING_TUNE_DEFAULT = {
   tiltX: 0,
   tiltY: 0,
-  trackTopRem: 23,
+  trackOffsetRem: 0,
   radiusVw: 65,
   spacingFactor: 0.45,
   sideCurveBoost: 8.05,
   stairStrength: 3,
-} as const;
+};
+
+type Tune = typeof ROTATING_TUNE_DEFAULT;
 
 export function RotatingSlideSection() {
   const sectionRef = useRef<HTMLElement>(null);
   const pinRef = useRef<HTMLDivElement>(null);
   const [rotationProgress, setRotationProgress] = useState(0);
+  const [tune, setTune] = useState<Tune>(ROTATING_TUNE_DEFAULT);
+  const [showPanel, setShowPanel] = useState(false);
+  const [autoOffsetRem, setAutoOffsetRem] = useState(0);
   const reduceMotion = useReducedMotion();
+
+  const set = (key: keyof Tune, val: number) =>
+    setTune((prev) => ({ ...prev, [key]: val }));
+
+  // GNB 높이 + perspective 왜곡을 보정해 카드를 시각적 중앙에 배치
+  useLayoutEffect(() => {
+    const compute = () => {
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      const radiusPx = Math.min(vw * (tune.radiusVw / 100), 60 * 16);
+      const scale = PERSPECTIVE_PX / (PERSPECTIVE_PX - radiusPx);
+      const originY = PERSPECTIVE_ORIGIN_Y * vh;
+      // GNB 아래 사용 가능한 영역의 시각적 중앙
+      const visualCenterY = GNB_HEIGHT_PX + (vh - GNB_HEIGHT_PX) / 2;
+      // scene top: 50% 기준 카드 중앙 = sceneCenterY + offsetPx
+      // 원근 투영 후 화면 Y: originY + (cssY - originY) * scale = visualCenterY
+      const sceneCenterY = vh / 2;
+      const offsetPx =
+        (visualCenterY - originY) / scale + originY - sceneCenterY;
+      setAutoOffsetRem(offsetPx / 16);
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, [tune.radiusVw]);
 
   useLayoutEffect(() => {
     const section = sectionRef.current;
@@ -96,21 +130,39 @@ export function RotatingSlideSection() {
       },
     });
 
+    // pin 종료 후 pinShell 페이드 아웃
+    const fadeOut = gsap.fromTo(
+      pinEl,
+      { autoAlpha: 1 },
+      {
+        autoAlpha: 0,
+        ease: "none",
+        scrollTrigger: {
+          trigger: section,
+          start: "bottom bottom",
+          end: "bottom 30%",
+          scrub: 1,
+        },
+      },
+    );
+
     return () => {
       st.kill();
+      fadeOut.kill();
     };
   }, []);
 
   const activeIndex = clamp(Math.floor(rotationProgress * ROTATION_SLIDES_COUNT), 0, ROTATION_SLIDES_COUNT - 1);
   const activeSlide = ROTATION_SLIDES[clamp(activeIndex, 0, ROTATION_SLIDES_COUNT - 1)];
   const rotationDeg =
-    rotationProgress * (ROTATION_SLIDES_COUNT - 1) * CYLINDER_STEP_DEG * ROTATING_TUNE.spacingFactor;
+    rotationProgress * (ROTATION_SLIDES_COUNT - 1) * CYLINDER_STEP_DEG * tune.spacingFactor;
+  const totalOffsetRem = autoOffsetRem + tune.trackOffsetRem;
   const trackStyle = {
-    top: `${ROTATING_TUNE.trackTopRem}rem`,
-    transform: `translateX(-50%) rotateX(${ROTATING_TUNE.tiltX}deg) rotateY(${ROTATING_TUNE.tiltY}deg) translateY(-0.2rem)`,
+    top: "50%",
+    transform: `translateX(-50%) translateY(calc(-50% + ${totalOffsetRem}rem)) rotateX(${tune.tiltX}deg) rotateY(${tune.tiltY}deg)`,
   } as CSSProperties;
   const cylinderStyle = {
-    "--slide-radius": `min(${ROTATING_TUNE.radiusVw}vw, 60rem)`,
+    "--slide-radius": `min(${tune.radiusVw}vw, 60rem)`,
   } as CSSProperties;
 
   return (
@@ -125,18 +177,17 @@ export function RotatingSlideSection() {
           <div className={styles.cylinderTrack} style={trackStyle}>
             <div className={styles.cylinder} style={cylinderStyle}>
               {ROTATION_SLIDES.map((slide, index) => {
-                const baseAngle = index * CYLINDER_STEP_DEG * ROTATING_TUNE.spacingFactor;
+                const baseAngle = index * CYLINDER_STEP_DEG * tune.spacingFactor;
                 const angle = normalizeDegrees(baseAngle - rotationDeg);
                 const frontHalfVisible = Math.abs(angle) <= 90;
                 const visible = frontHalfVisible ? clamp(1 - Math.abs(angle) / 98, 0, 1) : 0;
                 const diagonalRatio = clamp(angle / 90, -1, 1);
                 const diagonalStrength = Math.pow(Math.abs(diagonalRatio), 1.12);
                 const diagonalDirection = Math.sign(diagonalRatio);
-                const diagonalShiftX = diagonalDirection * diagonalStrength * 86 * ROTATING_TUNE.stairStrength;
-                const diagonalShiftY = diagonalDirection * diagonalStrength * 112 * ROTATING_TUNE.stairStrength;
+                const diagonalShiftX = diagonalDirection * diagonalStrength * 86 * tune.stairStrength;
+                const diagonalShiftY = diagonalDirection * diagonalStrength * 112 * tune.stairStrength;
                 const sideCurveAmount = Math.pow(Math.abs(diagonalRatio), 1.05);
-                // boost가 1을 넘어도 방향이 뒤집히지 않도록 감쇠식으로 계산
-                const counterYaw = -angle / (1 + sideCurveAmount * ROTATING_TUNE.sideCurveBoost);
+                const counterYaw = -angle / (1 + sideCurveAmount * tune.sideCurveBoost);
                 const style = {
                   opacity: frontHalfVisible ? 0.16 + visible * 0.84 : 0,
                   filter: `blur(${(1 - visible) * 1.65}px)`,
@@ -152,6 +203,7 @@ export function RotatingSlideSection() {
                     className={styles.card}
                     style={style}
                     aria-hidden={!frontHalfVisible || visible < 0.06}
+                    suppressHydrationWarning
                   >
                     <Image
                       src={slide.imageSrc}
@@ -167,6 +219,43 @@ export function RotatingSlideSection() {
               })}
             </div>
           </div>
+        </div>
+
+        <div className={styles.controlWrap}>
+          <button
+            type="button"
+            className={styles.controlToggle}
+            onClick={() => setShowPanel((v) => !v)}
+          >
+            {showPanel ? "▲ 닫기" : "▼ 튜닝"}
+          </button>
+          {showPanel && (
+            <div className={styles.controlPanel}>
+              {(
+                [
+                  { key: "sideCurveBoost", label: "사이드 회전량", min: 0, max: 20, step: 0.05 },
+                  { key: "stairStrength",  label: "계단 강도",     min: 0, max: 5,  step: 0.05 },
+                  { key: "radiusVw",       label: "반경 (vw)",     min: 5, max: 60, step: 0.5  },
+                  { key: "spacingFactor",  label: "간격 배수",     min: 0.1, max: 1, step: 0.01 },
+                  { key: "trackOffsetRem", label: "수직 오프셋 (rem)", min: -20, max: 20, step: 0.25 },
+                  { key: "tiltX",          label: "틸트 X (deg)",  min: -30, max: 30, step: 0.5 },
+                  { key: "tiltY",          label: "틸트 Y (deg)",  min: -30, max: 30, step: 0.5 },
+                ] as const
+              ).map(({ key, label, min, max, step }) => (
+                <div key={key} className={styles.controlRow}>
+                  <span>{label}: {tune[key]}</span>
+                  <input
+                    type="range"
+                    min={min}
+                    max={max}
+                    step={step}
+                    value={tune[key]}
+                    onChange={(e) => set(key, parseFloat(e.target.value))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className={styles.copy}>

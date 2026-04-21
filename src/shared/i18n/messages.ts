@@ -45,6 +45,82 @@ export interface MedicalTeamSectionMessages {
   ctaLabel: string;
 }
 
+export interface MachineSectionMachine {
+  nameEn: string;
+  nameKo: string;
+  imageSrc: string;
+  description: string;
+  bgImageSrc?: string;
+  headlineEyebrowLabel?: string;
+  headlineTitle?: string;
+  headlineDescription?: string;
+  headlineCtaLabel?: string;
+}
+
+export interface MachineSectionMessages {
+  eyebrowIcon: string;
+  eyebrowLabel: string;
+  title: string;
+  description: string;
+  ctaLabel: string;
+  machines: MachineSectionMachine[];
+}
+
+export interface ReviewSectionReviewCard {
+  imageSrc: string;
+  label: string;
+  href?: string;
+  tab?: "vision" | "cataract";
+}
+
+export interface ReviewSectionMessages {
+  eyebrowEn: string;
+  title: string;
+  description: string;
+  ctaLabel: string;
+  tabs: string[];
+  featuredImageSrc: string;
+  featuredAlt: string;
+  featuredHref?: string;
+  cards: ReviewSectionReviewCard[];
+}
+
+export interface SystemSectionItem {
+  eyebrowEn: string;
+  title: string;
+  description: string;
+  imageSrc: string;
+  ctaLabel?: string;
+  ctaHref?: string;
+}
+
+export interface SystemSectionMessages {
+  items: SystemSectionItem[];
+}
+
+export interface BlogSectionPost {
+  indexLabel: string;
+  title: string;
+  date: string;
+  thumbnailSrc: string;
+  href?: string;
+}
+
+export interface BlogSectionMessages {
+  eyebrowEn: string;
+  titlePrefix: string;
+  titleAccent: string;
+  description: string;
+  ctaLabel: string;
+  ctaHref?: string;
+  heroImageSrc: string;
+  heroTitle: string;
+  heroDate: string;
+  heroSourceLabel: string;
+  heroHref?: string;
+  posts: BlogSectionPost[];
+}
+
 export interface AcademicPublicationsSectionMessages {
   eyebrowEn: string;
   title: string;
@@ -63,6 +139,10 @@ export interface Dictionary {
   heroQuickBar: HeroQuickBarMessages;
   typographySection: TypographySectionMessages;
   medicalTeamSection: MedicalTeamSectionMessages;
+  machineSection: MachineSectionMessages;
+  reviewSection: ReviewSectionMessages;
+  systemSection: SystemSectionMessages;
+  blogSection: BlogSectionMessages;
   academicPublicationsSection: AcademicPublicationsSectionMessages;
 }
 
@@ -121,6 +201,126 @@ export const dictionaries: Record<Locale, Dictionary> = {
       titleLine1: "당신이 마주할 신세계,",
       titleLine2: "신세계안과 전문의가 함께합니다",
       ctaLabel: "신세계 의료진 전체보기 →",
+    },
+    machineSection: {
+      eyebrowIcon: "⚙",
+      eyebrowLabel: "Advanced Tech & Systems",
+      title: "최첨단 시스템 도입\n혁신으로 열리는 신세계",
+      description: "더 빠르고 더 정교하게, 당신이 꿈꾸던 선명함을 가장 먼저 선사합니다",
+      ctaLabel: "VISUMAX 800",
+      machines: [
+        {
+          nameEn: "VISUMAX 800",
+          nameKo: "비쥬맥스 800",
+          imageSrc: "/main/img_main_machine01.png",
+          description:
+            "업그레이드된 스캐닝 기술을 탑재하여 10초 이내의 초고속 조사(2MHz)를 통해 수술 시간을 단축하고 각막 손상을 최소화합니다",
+          headlineCtaLabel: "VISUMAX 800",
+        },
+        {
+          nameEn: "VISUMAX 500",
+          nameKo: "비쥬맥스 500",
+          imageSrc: "/main/img_main_machine02.png",
+          bgImageSrc: "/main/img_main_machine_bg02.png",
+          description:
+            "최첨단 펨토초 레이저 기술과 고정밀 안구 추적 시스템을 결합해 더 빠르고, 더 정교한 시력교정을 구현합니다",
+          headlineEyebrowLabel: "Advanced Tech & Systems",
+          headlineTitle: "최첨단 시스템 도입\n혁신으로 열리는 신세계",
+          headlineDescription:
+            "더 빠르고 더 정교하게, 당신이 꿈꾸던 선명함을 가장 먼저 선사합니다",
+          headlineCtaLabel: "VISUMAX 500",
+        },
+        {
+          nameEn: "Catalys laser",
+          nameKo: "카탈리스 레이저",
+          imageSrc: "/main/img_main_machine03.png",
+          bgImageSrc: "/main/img_main_machine_bg03.png",
+          description:
+            "3D 안구 단층 촬영(OCT)이 적용된 백내장 수술 전용 레이저로, 칼날 대신 정교한 레이저를 사용하여 수술의 안전성과 정확도를 극대화합니다",
+          headlineCtaLabel: "Catalys laser",
+        },
+      ],
+    },
+    reviewSection: {
+      eyebrowEn: "Shinsegae Eye Clinic Patient Stories",
+      title: "신세계안과 리얼후기",
+      description: "실제 환자들의 경험을 통해 시력 변화와 일상을 확인해보세요",
+      ctaLabel: "리얼후기 전체보기 →",
+      tabs: ["시력교정후기", "백내장후기"],
+      featuredImageSrc: "/main/img_main_review01.png",
+      featuredAlt: "리얼 후기 대표 이미지",
+      featuredHref: "#",
+      cards: [
+        { imageSrc: "/main/img_main_review02.png", label: "신세계 스마일프로", href: "#", tab: "vision" },
+        { imageSrc: "/main/img_main_review02.png", label: "신세계 스마일", href: "#", tab: "vision" },
+        { imageSrc: "/main/img_main_review02.png", label: "신세계 라식/라섹", href: "#", tab: "vision" },
+        { imageSrc: "/main/img_main_review02.png", label: "신세계 렌즈삽입술", href: "#", tab: "cataract" },
+        { imageSrc: "/main/img_main_review02.png", label: "신세계 스마일", href: "#", tab: "cataract" },
+        { imageSrc: "/main/img_main_review02.png", label: "신세계 스마일프로", href: "#", tab: "cataract" },
+      ],
+    },
+    systemSection: {
+      items: [
+        {
+          eyebrowEn: "60 Detailed Pre-Surgery Screenings",
+          title: "수술 전, 60여 가지 정밀 검사",
+          description:
+            "눈의 모든 데이터를 60여 가지 항목으로 세분화하여 측정합니다\n엄격한 기준 그대로, 작은 변수까지 미리 파악하여 가장 안정적인 수술 계획을 수립합니다",
+          imageSrc: "/main/img_main_system01.png",
+        },
+        {
+          eyebrowEn: "Advanced Sterile Surgery Suites",
+          title: "대학병원급 무균 수술 시스템",
+          description:
+            "최첨단 장비들이 오차 없이 작동할 수 있도록 최적의 환경을 유지합니다\n대학병원 수준의 시스템을 통해 감염 위험을 방지하며,\n보이지 않는 곳의 위생까지 원칙대로 관리하여 환자가\n오직 '선명해질 결과'에만 집중할 수 있게 합니다",
+          imageSrc: "/main/img_main_system02.png",
+        },
+        {
+          eyebrowEn: "Lifetime Care System",
+          title: "수술 후 관리 시스템",
+          description:
+            "수술 후 정기 검진 리마인드와 시력 추적 데이터를 체계적으로 관리합니다\n한 번 신세계를 만난 분들이 평생 안심하고 눈을 맡길 수 있도록,\n광주 신세계안과가 당신의 든든한 평생 눈 주치의가 되어드립니다",
+          imageSrc: "/main/img_main_system03.png",
+          ctaLabel: "신세계가 말하는 안전의 기준, 지금 확인해보세요 →",
+          ctaHref: "#",
+        },
+      ],
+    },
+    blogSection: {
+      eyebrowEn: "SHINSEGAE WEB BLOG",
+      titlePrefix: "SHINSEGAE ",
+      titleAccent: "WEB BLOG",
+      description: "다양한 정보와 눈 관련 정보들까지 신세계 블로그에서 확인하세요",
+      ctaLabel: "신세계 블로그 보러가기",
+      ctaHref: "#",
+      heroImageSrc: "/main/img_main_blog01.png",
+      heroTitle: "봄철 눈이 간지럽다면? 알레르기성 결막염 증상과 관리 방법",
+      heroDate: "2026-03-26",
+      heroSourceLabel: "신세계안과",
+      heroHref: "#",
+      posts: [
+        {
+          indexLabel: "01",
+          title: "시력교정수술 전 꼭 알아야 할\n검사 과정과 주의사항 정리",
+          date: "2026-03-26",
+          thumbnailSrc: "/main/img_main_blog02.png",
+          href: "#",
+        },
+        {
+          indexLabel: "02",
+          title: "스마트폰 많이 보면 생기는 안구건조증,\n원인과 해결법은?",
+          date: "2026-03-26",
+          thumbnailSrc: "/main/img_main_blog03.png",
+          href: "#",
+        },
+        {
+          indexLabel: "03",
+          title: "백내장 초기 증상 놓치면 늦는다?\n치료 시기와 수술 정보 안내",
+          date: "2026-03-26",
+          thumbnailSrc: "/main/img_main_blog04.png",
+          href: "#",
+        },
+      ],
     },
     academicPublicationsSection: {
       eyebrowEn: "Academic Activities and Publications",
@@ -185,6 +385,126 @@ export const dictionaries: Record<Locale, Dictionary> = {
       titleLine1: "A new world for your vision,",
       titleLine2: "guided by Shinsegae Eye specialists",
       ctaLabel: "View all Shinsegae specialists →",
+    },
+    machineSection: {
+      eyebrowIcon: "⚙",
+      eyebrowLabel: "Advanced Tech & Systems",
+      title: "State-of-the-Art Systems\nA New World of Innovation",
+      description: "Faster, more precise — we bring the clarity you've dreamed of, first.",
+      ctaLabel: "VISUMAX 800",
+      machines: [
+        {
+          nameEn: "VISUMAX 800",
+          nameKo: "VisuMax 800",
+          imageSrc: "/main/img_main_machine01.png",
+          description:
+            "Upgraded scanning technology enables ultra-fast irradiation (2MHz) in under 10 seconds, shortening surgery time and minimising corneal damage.",
+          headlineCtaLabel: "VISUMAX 800",
+        },
+        {
+          nameEn: "VISUMAX 500",
+          nameKo: "VisuMax 500",
+          imageSrc: "/main/img_main_machine02.png",
+          bgImageSrc: "/main/img_main_machine_bg02.png",
+          description:
+            "Combining advanced femtosecond laser technology with a high-precision eye-tracking system, it enables faster and more precise vision correction.",
+          headlineEyebrowLabel: "Advanced Tech & Systems",
+          headlineTitle: "State-of-the-Art Systems\nA New World of Innovation",
+          headlineDescription:
+            "Faster, more precise — we bring the clarity you've dreamed of, first.",
+          headlineCtaLabel: "VISUMAX 500",
+        },
+        {
+          nameEn: "Catalys laser",
+          nameKo: "Catalys laser",
+          imageSrc: "/main/img_main_machine03.png",
+          bgImageSrc: "/main/img_main_machine_bg03.png",
+          description:
+            "A cataract-surgery laser system equipped with 3D OCT, using precise laser treatment instead of blades to maximize surgical safety and accuracy.",
+          headlineCtaLabel: "Catalys laser",
+        },
+      ],
+    },
+    reviewSection: {
+      eyebrowEn: "Shinsegae Eye Clinic Patient Stories",
+      title: "Real Patient Stories",
+      description: "Discover real vision changes and everyday life through patient experiences.",
+      ctaLabel: "View all stories >",
+      tabs: ["Vision correction >", "Cataract"],
+      featuredImageSrc: "/main/img_main_review01.png",
+      featuredAlt: "Featured patient story",
+      featuredHref: "#",
+      cards: [
+        { imageSrc: "/main/img_main_review02.png", label: "Shinsegae Smile Pro", href: "#", tab: "vision" },
+        { imageSrc: "/main/img_main_review02.png", label: "Shinsegae Smile", href: "#", tab: "vision" },
+        { imageSrc: "/main/img_main_review02.png", label: "Shinsegae LASIK/LASEK", href: "#", tab: "vision" },
+        { imageSrc: "/main/img_main_review02.png", label: "Shinsegae Lens Implant", href: "#", tab: "cataract" },
+        { imageSrc: "/main/img_main_review02.png", label: "Shinsegae Smile", href: "#", tab: "cataract" },
+        { imageSrc: "/main/img_main_review02.png", label: "Shinsegae Smile Pro", href: "#", tab: "cataract" },
+      ],
+    },
+    systemSection: {
+      items: [
+        {
+          eyebrowEn: "60 Detailed Pre-Surgery Screenings",
+          title: "60+ Precision Tests Before Surgery",
+          description:
+            "We measure your eyes across more than 60 segmented indicators.\nBased on these results, we identify even minor variables in advance to establish the safest surgical plan.",
+          imageSrc: "/main/img_main_system01.png",
+        },
+        {
+          eyebrowEn: "Advanced Sterile Surgery Suites",
+          title: "Hospital-Grade Sterile Surgery System",
+          description:
+            "We maintain an optimal environment so advanced equipment can operate without error.\nThrough hospital-grade systems, we prevent infection risks and uphold hygiene standards even in unseen areas,\nallowing patients to focus solely on clear outcomes.",
+          imageSrc: "/main/img_main_system02.png",
+        },
+        {
+          eyebrowEn: "Lifetime Care System",
+          title: "Post-Surgery Care System",
+          description:
+            "We systematically manage post-surgery checkup reminders and vision-tracking data.\nSo that everyone who meets a new world with Shinsegae can entrust their eyes with confidence for life,\nGwangju Shinsegae Eye Clinic stands by as your lifelong eye doctor.",
+          imageSrc: "/main/img_main_system03.png",
+          ctaLabel: "See Shinsegae's standard of safety now →",
+          ctaHref: "#",
+        },
+      ],
+    },
+    blogSection: {
+      eyebrowEn: "SHINSEGAE WEB BLOG",
+      titlePrefix: "SHINSEGAE WEB ",
+      titleAccent: "BLOG",
+      description: "Explore eye-care insights and useful updates on the Shinsegae blog.",
+      ctaLabel: "Visit Shinsegae blog",
+      ctaHref: "#",
+      heroImageSrc: "/main/img_main_blog01.png",
+      heroTitle: "Itchy eyes in spring? Allergic conjunctivitis signs and care",
+      heroDate: "2026-03-26",
+      heroSourceLabel: "Shinsegae Eye Clinic",
+      heroHref: "#",
+      posts: [
+        {
+          indexLabel: "01",
+          title: "Must-know pre-op checks before vision correction surgery",
+          date: "2026-03-26",
+          thumbnailSrc: "/main/img_main_blog02.png",
+          href: "#",
+        },
+        {
+          indexLabel: "02",
+          title: "Staring at screens too long? Dry-eye causes and fixes",
+          date: "2026-03-26",
+          thumbnailSrc: "/main/img_main_blog03.png",
+          href: "#",
+        },
+        {
+          indexLabel: "03",
+          title: "Early cataract signs you should not miss and treatment timing",
+          date: "2026-03-26",
+          thumbnailSrc: "/main/img_main_blog04.png",
+          href: "#",
+        },
+      ],
     },
     academicPublicationsSection: {
       eyebrowEn: "Academic Activities and Publications",

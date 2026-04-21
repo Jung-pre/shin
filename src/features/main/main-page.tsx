@@ -10,14 +10,22 @@ import { MainHero } from "@/features/main/sections/hero/main-hero";
 import type { Locale } from "@/shared/config/i18n";
 import type {
   AcademicPublicationsSectionMessages,
+  BlogSectionMessages,
   HeroQuickBarMessages,
+  MachineSectionMessages,
   MedicalTeamSectionMessages,
+  ReviewSectionMessages,
+  SystemSectionMessages,
   TypographySectionMessages,
 } from "@/shared/i18n/messages";
 import { TypographyScrollSection } from "@/features/main/sections/typography/typography-scroll-section";
 import { RotatingSlideSection } from "@/features/main/sections/rotating-slide/rotating-slide-section";
 import { AcademicPublicationsSection } from "@/features/main/sections/academic-publications/academic-publications-section";
 import { MedicalTeamSection } from "@/features/main/sections/medical-team/medical-team-section";
+import { MachineSection } from "@/features/main/sections/machine/machine-section";
+import { ReviewSection } from "@/features/main/sections/review/review-section";
+import { SystemSection } from "@/features/main/sections/system/system-section";
+import { BlogSection } from "@/features/main/sections/blog/blog-section";
 import styles from "./main-page.module.css";
 
 /** 잠시 끔 — 다시 켤 때 `true`로 바꾸고 아래 글래스 레이어 렌더 복구 */
@@ -35,6 +43,10 @@ export interface MainPageProps {
   heroQuickBar: HeroQuickBarMessages;
   typographySection: TypographySectionMessages;
   medicalTeamSection: MedicalTeamSectionMessages;
+  machineSection: MachineSectionMessages;
+  reviewSection: ReviewSectionMessages;
+  systemSection: SystemSectionMessages;
+  blogSection: BlogSectionMessages;
   academicPublicationsSection: AcademicPublicationsSectionMessages;
 }
 
@@ -45,6 +57,10 @@ export const MainPage = ({
   heroQuickBar,
   typographySection,
   medicalTeamSection,
+  machineSection,
+  reviewSection,
+  systemSection,
+  blogSection,
   academicPublicationsSection,
 }: MainPageProps) => {
   const mainRef = useRef<HTMLElement>(null);
@@ -106,6 +122,10 @@ export const MainPage = ({
         <RotatingSlideSection />
         <MedicalTeamSection messages={medicalTeamSection} />
         <AcademicPublicationsSection messages={academicPublicationsSection} />
+        <MachineSection messages={machineSection} />
+        <ReviewSection messages={reviewSection} />
+        <SystemSection messages={systemSection} />
+        <BlogSection messages={blogSection} />
       </div>
     </main>
   );

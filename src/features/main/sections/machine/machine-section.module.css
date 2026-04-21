@@ -1,0 +1,355 @@
+.section {
+  position: relative;
+  width: 100%;
+  height: 400vh;
+  background: #03050f;
+  overflow: hidden;
+}
+
+.pinShell {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.bgLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% auto;
+  pointer-events: none;
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  width: calc(100% - 16.24rem);
+  max-width: none;
+  margin: 0 auto;
+  padding: 0;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(20rem, 31rem) minmax(24rem, 1fr);
+  align-items: start;
+  gap: clamp(1rem, 3vw, 2rem);
+}
+
+.copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 42rem;
+  gap: 0;
+}
+
+.headlineBlock {
+  margin-top: 13.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.eyebrow {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.eyebrowDot {
+  display: inline-block;
+  width: 2rem;
+  height: 1.2rem;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.eyebrowText {
+  color: #fff;
+  font-family: var(--font-marcellus-stack);
+  font-size: 1.625rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 110%;
+  letter-spacing: -0.0325rem;
+}
+
+.title {
+  margin: 1rem 0 0;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-pretendard-stack);
+  font-size: 2.5rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 140%;
+  letter-spacing: -0.1rem;
+  word-break: keep-all;
+}
+
+.titleLinePrimary {
+  color: #baa3ff;
+  transition: color 0.4s ease;
+}
+
+.titleLinePrimary500 {
+  color: #98d8ff;
+}
+
+.titleLinePrimaryCatalys {
+  color: #ffc3a3;
+}
+
+.titleLineSecondary {
+  color: #fff;
+}
+
+.description {
+  margin: 1.25rem 0 0;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.125rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 180%;
+  letter-spacing: -0.045rem;
+  word-break: keep-all;
+}
+
+.machineTitle {
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  position: relative;
+  z-index: 1;
+}
+
+.machineInfoBlock {
+  position: absolute;
+  left: 26.31rem;
+  bottom: 12.06rem;
+  width: 23.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.machineBackdropTitle {
+  position: absolute;
+  top: -2.8rem;
+  left: 2.8rem;
+  margin: 0;
+  white-space: nowrap;
+  color: #fff;
+  font-family: "Poppins", var(--font-pretendard-stack);
+  font-size: 5rem;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 110%;
+  letter-spacing: -0.1rem;
+  opacity: 0.1;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+.machineBackdropTitle500 {
+  top: -3.25rem;
+  left: -9.8rem;
+}
+
+.machineTitleKo {
+  text-align: center;
+  font-family: var(--font-pretendard-stack);
+  font-size: 2.5rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 160%;
+  letter-spacing: -0.1rem;
+  background: linear-gradient(180deg, #fff 20.31%, #baa3ff 80.47%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.machineTitleKo500 {
+  font-size: 2.5rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 140%;
+  letter-spacing: -0.1rem;
+  background: linear-gradient(180deg, #fff 20.31%, #98d8ff 80.47%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.machineTitleKoCatalys {
+  background: linear-gradient(180deg, #fff 20.31%, #ffc3a3 80.47%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.machineTitleEn {
+  color: #fff;
+  font-family: var(--font-marcellus-stack);
+  font-size: 1.25rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 110%;
+  letter-spacing: -0.025rem;
+}
+
+.machineDesc {
+  margin: 0;
+  max-width: 31rem;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.25rem;
+  font-style: normal;
+  font-weight: 300;
+  line-height: 160%;
+  letter-spacing: -0.05rem;
+  word-break: keep-all;
+  position: relative;
+  z-index: 1;
+}
+
+.machineInfoBlock800 {
+  top: 45.12rem;
+  left: 31.69rem;
+  bottom: auto;
+}
+
+.machineInfoBlock500 {
+  top: 12.94rem;
+  left: 44.34rem;
+  bottom: auto;
+  color: #98d8ff;
+}
+
+.machineInfoBlockCatalys {
+  top: 38.25rem;
+  left: 34.44rem;
+  bottom: auto;
+}
+
+.cta {
+  display: flex;
+  margin-top: 2.5rem;
+  padding: 0.75rem 1.5rem;
+  justify-content: center;
+  align-items: center;
+  border-radius: 6.25rem;
+  border: 1px solid #fff;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow:
+    -3px -3px 4px 0 rgba(255, 255, 255, 0.2) inset,
+    2px 2px 6px 0 rgba(255, 255, 255, 0.25) inset;
+  backdrop-filter: blur(5px);
+  cursor: pointer;
+}
+
+.ctaText {
+  color: #fff;
+  font-family: var(--font-marcellus-stack);
+  font-size: 1.375rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 110%;
+  letter-spacing: -0.0275rem;
+}
+
+.imageWrap {
+  position: absolute;
+  top: 6.13rem;
+  left: calc(50% + 5rem);
+  width: 42.6875rem;
+  height: 51rem;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.machineImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 77 / 92;
+  object-fit: contain;
+}
+
+.imageWrap500 {
+  left: auto;
+  top: 16.9rem;
+  right: 0;
+  bottom: auto;
+  width: 54.5rem;
+  height: 38.375rem;
+}
+
+.machineImage500 {
+  width: 54.5rem;
+  height: 38.375rem;
+  aspect-ratio: 98 / 69;
+}
+
+.imageWrapCatalys {
+  left: auto;
+  top: 9.56rem;
+  right: -0.12rem;
+  bottom: auto;
+  width: 59.125rem;
+  height: 47.8125rem;
+}
+
+.machineImageCatalys {
+  width: 59.125rem;
+  height: 47.8125rem;
+  aspect-ratio: 115 / 93;
+}
+
+@media (max-width: 900px) {
+  .section {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .pinShell {
+    min-height: auto;
+  }
+
+  .inner {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+    padding: clamp(3rem, 6vh, 4rem) clamp(1.25rem, 4vw, 2rem);
+  }
+
+  .copy {
+    min-height: auto;
+  }
+
+  .machineInfoBlock {
+    position: static;
+    width: 100%;
+  }
+
+  .imageWrap {
+    position: static;
+    width: 100%;
+    height: auto;
+    pointer-events: auto;
+  }
+
+  .machineImage {
+    width: 100%;
+    height: auto;
+  }
+}

@@ -1,5 +1,6 @@
 .section {
   position: relative;
+  z-index: 1;
   width: 100%;
   max-width: 100%;
   isolation: isolate;
@@ -10,7 +11,6 @@
   position: relative;
   min-height: 100vh;
   width: 100%;
-  overflow: hidden;
 }
 
 .scene {
@@ -36,8 +36,8 @@
 
 .cylinder {
   --slide-width: min(31vw, 32rem);
+  --slide-height: calc(var(--slide-width) * 0.5934);
   --slide-radius: min(57vw, 60rem);
-  --slide-height: calc(var(--slide-width) * 0.46);
   position: relative;
   width: min(100vw, 120rem);
   height: max(var(--slide-height), 15rem);
@@ -85,7 +85,7 @@
 
 .controlWrap {
   position: absolute;
-  top: 1.25rem;
+  top: 5rem;
   right: 1.25rem;
   z-index: 12;
   display: flex;

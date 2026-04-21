@@ -1,6 +1,5 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
 import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -29,33 +28,50 @@ export function MedicalTeamSection({ messages }: MedicalTeamSectionProps) {
     }
 
     const ctx = gsap.context(() => {
+      // 섹션 상단이 뷰포트 40% 지점에 진입할 때부터 뷰포트 최상단(0%)에 닿을 때까지 마스크 벗기기
       gsap.fromTo(
         curtain,
-        { yPercent: 55 },
+        { clipPath: "inset(30% 0 0 0 round 50% 50% 0 0 / 4.8rem 4.8rem 0 0)" },
         {
-          yPercent: 0,
+          clipPath: "inset(0% 0 0 0 round 50% 50% 0 0 / 4.8rem 4.8rem 0 0)",
           ease: "none",
           scrollTrigger: {
             trigger: section,
-            start: "top top",
-            end: "top+=20% top",
+            start: "top 70%",
+            end: "top top",
             scrub: 1,
           },
         },
       );
 
+      // 마스크가 완전히 열린 시점(섹션 상단 = 뷰포트 상단)에 콘텐츠 등장 모션
       gsap.fromTo(
-        [copy, imageFrame],
+        copy,
         { autoAlpha: 0, y: 28 },
         {
           autoAlpha: 1,
           y: 0,
           duration: 0.9,
           ease: "power3.out",
-          stagger: 0.12,
           scrollTrigger: {
             trigger: section,
-            start: "top+=20% top",
+            start: "top top",
+          },
+        },
+      );
+
+      gsap.fromTo(
+        imageFrame,
+        { autoAlpha: 0, y: "20vh" },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: 1.1,
+          ease: "power3.out",
+          delay: 0.12,
+          scrollTrigger: {
+            trigger: section,
+            start: "top top",
           },
         },
       );
@@ -66,15 +82,6 @@ export function MedicalTeamSection({ messages }: MedicalTeamSectionProps) {
 
   return (
     <section ref={sectionRef} className={styles.section} aria-label="Medical team">
-      <div className={styles.bgTeam} aria-hidden>
-        <img
-          src="/main/bg_team.png"
-          alt=""
-          className={styles.bgTeamImage}
-          loading="lazy"
-          decoding="async"
-        />
-      </div>
       <div ref={curtainRef} className={styles.curtain} aria-hidden />
       <div className={styles.inner}>
         <div ref={copyRef} className={styles.copy}>

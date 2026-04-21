@@ -46,6 +46,14 @@ export interface AcademicPublicationsSectionProps {
 export function AcademicPublicationsSection({ messages }: AcademicPublicationsSectionProps) {
   return (
     <section className={styles.section} aria-labelledby="academic-publications-heading">
+      <img
+        src="/main/bg_academic.png"
+        alt=""
+        className={styles.bgImage}
+        aria-hidden="true"
+        loading="lazy"
+        decoding="async"
+      />
       <div className={styles.inner}>
         <div className={styles.intro}>
           <div className={styles.copy}>
