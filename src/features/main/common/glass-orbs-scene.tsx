@@ -8,7 +8,7 @@ import * as THREE from "three";
 import type { Texture } from "three";
 import { Brush, Evaluator, SUBTRACTION } from "three-bvh-csg";
 import { Mesh, SphereGeometry, type BufferGeometry } from "three";
-import { useDomTransmissionTexture } from "@/shared/lib/use-dom-transmission-texture";
+import { useDomTransmissionTexture } from "@/features/main/common/use-dom-transmission-texture";
 import styles from "./glass-orbs-scene.module.css";
 
 type Vector3Tuple = [number, number, number];
@@ -212,7 +212,7 @@ export const GlassOrbsScene = ({ transmissionSourceRef }: GlassOrbsSceneProps) =
   return (
     <div ref={sceneWrapRef} className={styles.sceneWrap} aria-hidden>
       {/*
-        배경: 일반 DOM (HeroShell transmissionSourceRef).
+        배경: 일반 DOM (MainPage backdropRef → GlassOrbsScene transmissionSourceRef).
         위에 투명 WebGL Canvas — pointer-events: none으로 클릭은 뒤 DOM으로 통과.
         마우스 좌표는 window pointermove로 캔버스 기준 NDC를 계산해 raycaster에 전달.
       */}

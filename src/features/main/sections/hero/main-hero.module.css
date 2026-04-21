@@ -1,0 +1,402 @@
+/* --- 히어로 섹션 레이아웃 --- */
+@font-face {
+  font-family: "Mbc1961GLM";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2304-01@1.0/MBC1961GulimM.woff2")
+    format("woff2");
+  font-weight: normal;
+  font-display: swap;
+}
+
+.section {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  position: relative;
+  z-index: 0;
+}
+
+.titleWrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  pointer-events: none;
+}
+
+.title {
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  text-align: center;
+  font-family: "Mbc1961GLM", "Pretendard", sans-serif;
+  font-size: 21.875rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: normal;
+  background: linear-gradient(180deg, #fff 54.47%, #f5e0ff 81.32%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.quickDock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 2.5rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 0 clamp(16px, 2.2vw, 32px);
+  pointer-events: auto;
+}
+
+@media (max-width: 768px) {
+  .section {
+    min-height: calc(100vh - 88px);
+  }
+}
+
+/* --- 퀵 상담 바 --- */
+.bar {
+  --quick-purple: #812990;
+  --quick-purple-hover: #6b1f7a;
+  --quick-muted: #737373;
+  --quick-border-soft: #e1e1e1;
+
+  display: flex;
+  width: 100%;
+  max-width: 1660px;
+  padding: 16px 26px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+  border-radius: 1000px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: #fff;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  box-shadow: 0 12px 40px rgba(24, 12, 64, 0.08);
+}
+
+.cluster {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.headline {
+  margin: 0;
+  font-family: Pretendard, system-ui, -apple-system, sans-serif;
+  font-size: clamp(18px, 1.05vw, 22px);
+  font-weight: 700;
+  line-height: 120%;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.headlineLead {
+  color: #812990;
+}
+
+.headlineRest {
+  color: #404040;
+}
+
+.formBlock {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 320px;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.field {
+  box-sizing: border-box;
+  min-height: 44px;
+  height: 44px;
+  max-width: 100%;
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid #e1e1e1;
+  font-size: 0.9375rem;
+  outline: none;
+  text-align: center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: #fff;
+  color: #1a1a1a;
+}
+
+.field:hover,
+.field:focus-visible {
+  border: 1px solid #e1e1e1;
+  background: #fff;
+  box-shadow: 0 0 4px 0 rgba(129, 41, 144, 0.8);
+}
+
+.fieldName {
+  width: 88px;
+  flex-shrink: 0;
+}
+
+.fieldName::placeholder {
+  color: #b3b3b3;
+}
+
+.fieldContact {
+  width: 132px;
+  text-align: left;
+}
+
+.fieldContact::placeholder {
+  color: #b3b3b3;
+}
+
+.selectWrap {
+  position: relative;
+  width: 126px;
+  flex-shrink: 0;
+}
+
+.select {
+  box-sizing: border-box;
+  min-height: 44px;
+  height: 44px;
+  width: 100%;
+  padding: 10px 40px 10px 24px;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  outline: none;
+  background: #fff;
+  appearance: none;
+  border: 1px solid #e1e1e1;
+  color: var(--quick-muted);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.select:hover,
+.select:focus-visible {
+  border: 1px solid #e1e1e1;
+  background: #fff;
+  box-shadow: 0 0 4px 0 rgba(129, 41, 144, 0.8);
+}
+
+.selectChevron {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 11px;
+  height: 7px;
+  translate: 0 -50%;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.consentRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: #1a1a1a;
+  cursor: pointer;
+  max-width: none;
+  white-space: nowrap;
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  flex-shrink: 0;
+  accent-color: var(--quick-purple);
+  cursor: pointer;
+}
+
+.consentText {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.consentDetailLink {
+  color: var(--quick-purple);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: inherit;
+}
+
+.submit {
+  box-sizing: border-box;
+  display: flex;
+  width: 97px;
+  max-width: 100%;
+  padding: 8px 16px;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  border-radius: 8px;
+  background: var(--quick-purple);
+  color: #fff;
+  text-align: center;
+  font-family: Pretendard, system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 120%;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.submit:hover {
+  background: var(--quick-purple-hover);
+}
+
+.submit:active {
+  transform: scale(0.98);
+}
+
+.divider {
+  width: 1px;
+  height: 40px;
+  background: rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.linkItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  color: var(--quick-purple);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: opacity 0.2s ease;
+}
+
+.linkItem + .linkItem {
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.linkItem:hover {
+  opacity: 0.85;
+}
+
+.linkIcon {
+  flex-shrink: 0;
+  color: var(--quick-purple);
+}
+
+@media (max-width: 1200px) {
+  .bar {
+    border-radius: 28px;
+    padding: 18px 24px;
+  }
+
+  .divider {
+    display: none;
+  }
+
+  .cluster {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .links {
+    justify-content: space-between;
+    width: 100%;
+    padding-top: 4px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .linkItem {
+    flex: 1 1 25%;
+    justify-content: center;
+    padding: 12px 8px;
+    font-size: 0.8125rem;
+  }
+
+  .linkItem + .linkItem {
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+  }
+}
+
+@media (max-width: 640px) {
+  .headline {
+    white-space: normal;
+  }
+
+  .fieldName,
+  .fieldContact,
+  .selectWrap {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .formBlock {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .consentRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .submit {
+    width: 100%;
+  }
+
+  .links {
+    flex-direction: column;
+  }
+
+  .linkItem,
+  .linkItem + .linkItem {
+    border-left: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* --- 실험용 Eye R3F (라우트 미연결 시 참고용) --- */
+.eyeRoot {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+}

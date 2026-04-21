@@ -1,0 +1,62 @@
+.section {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  isolation: isolate;
+  overflow: visible;
+}
+
+/* 핀은 GSAP ScrollTrigger — CSS sticky 미사용(조상 overflow 와 무관) */
+.pinShell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.75rem, 4.5vh, 2rem) clamp(1.5rem, 5vw, 2.5rem);
+  z-index: 1;
+}
+
+.stack {
+  width: 100%;
+  max-width: min(1120px, 100%);
+  min-height: min(40vh, 320px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.75rem, 2vh, 1.25rem);
+  text-align: center;
+  pointer-events: none;
+  will-change: opacity, transform, filter;
+}
+
+.lineEn {
+  margin: 0;
+  max-width: 36rem;
+  color: #fff;
+  text-align: center;
+  font-family: var(--font-marcellus-stack);
+  font-size: clamp(1.0625rem, 2.8vw, 1.625rem);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 140%;
+}
+
+.lineKo {
+  margin: 0;
+  max-width: min(100%, 22ch);
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: clamp(2.25rem, 9vw, 5rem);
+  font-style: normal;
+  font-weight: 700;
+  line-height: 150%;
+  letter-spacing: clamp(-0.06rem, -0.02em, -0.15rem);
+  word-break: keep-all;
+}

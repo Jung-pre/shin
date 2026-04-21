@@ -1,6 +1,8 @@
 .header {
   width: 100%;
-  position: sticky;
+  position: fixed;
+  left: 0;
+  right: 0;
   top: 0;
   z-index: 20;
   background: transparent;
@@ -25,7 +27,6 @@
 
 .logo span {
   color: #fff;
-  font-family: Pretendard, var(--font-geist-sans), sans-serif;
   font-size: 1.75rem;
   font-style: normal;
   font-weight: 700;
@@ -43,7 +44,6 @@
 .menuLink,
 .account {
   color: #fff;
-  font-family: Pretendard, var(--font-geist-sans), sans-serif;
   font-size: 1.125rem;
   font-style: normal;
   font-weight: 500;

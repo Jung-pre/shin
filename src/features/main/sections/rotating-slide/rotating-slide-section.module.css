@@ -1,0 +1,200 @@
+.section {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  isolation: isolate;
+  overflow: visible;
+}
+
+.pinShell {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.scene {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1900px;
+  perspective-origin: 50% 42%;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 18%, #000 82%, transparent 100%);
+}
+
+/* 일반 원통이 아닌 대각선 축 느낌 */
+.cylinderTrack {
+  position: absolute;
+  left: 50%;
+  top: 17.44rem;
+  transform-style: preserve-3d;
+}
+
+.cylinder {
+  --slide-width: min(31vw, 32rem);
+  --slide-radius: min(57vw, 60rem);
+  --slide-height: calc(var(--slide-width) * 0.46);
+  position: relative;
+  width: min(100vw, 120rem);
+  height: max(var(--slide-height), 15rem);
+  transform-style: preserve-3d;
+}
+
+.card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--slide-width);
+  height: var(--slide-height);
+  overflow: hidden;
+  border-radius: 1.12rem;
+  box-shadow: 0 12px 42px rgba(26, 6, 44, 0.24);
+  will-change: transform, opacity, filter;
+  backface-visibility: hidden;
+  transform-origin: center center;
+}
+
+.cardImage {
+  object-fit: cover;
+}
+
+.copy {
+  position: absolute;
+  left: 8.13rem;
+  bottom: 10.13rem;
+  width: min(43rem, calc(100% - 16.26rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 5;
+  word-break: keep-all;
+  pointer-events: none;
+  text-wrap: balance;
+}
+
+.copyStack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  will-change: transform, opacity, filter;
+}
+
+.controlWrap {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.controlToggle {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.78rem;
+  background: rgba(34, 19, 56, 0.62);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+.controlPanel {
+  min-width: 16.5rem;
+  border-radius: 0.75rem;
+  padding: 0.72rem 0.82rem;
+  background: rgba(22, 10, 35, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.52rem;
+}
+
+.controlRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.controlRow input[type="range"] {
+  width: 100%;
+  accent-color: #e8d9ff;
+}
+
+.lineEn {
+  margin: 0;
+  color: #fff;
+  font-family: var(--font-marcellus-stack);
+  font-size: 1.25rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 140%;
+}
+
+.lineKo {
+  margin: 0;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 2.25rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 150%;
+  letter-spacing: -0.0675rem;
+}
+
+.lineDesc {
+  margin: 0;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.125rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 150%;
+  letter-spacing: -0.03375rem;
+}
+
+@media (max-width: 1024px) {
+  .cylinder {
+    --slide-width: min(68vw, 34rem);
+    --slide-radius: min(94vw, 48rem);
+  }
+
+  .copy {
+    left: 2rem;
+    right: 2rem;
+    bottom: 4rem;
+    width: auto;
+  }
+
+  .controlWrap {
+    top: 0.9rem;
+    right: 0.9rem;
+  }
+
+  .controlPanel {
+    min-width: 13.5rem;
+  }
+
+  .lineEn {
+    font-size: 1.05rem;
+  }
+
+  .lineKo {
+    font-size: 1.8rem;
+  }
+
+  .lineDesc {
+    font-size: 1rem;
+  }
+}

@@ -1,0 +1,53 @@
+.root {
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+  /* sticky: 조상 overflow ≠ visible 이면 깨질 수 있음 — 가로는 100vw 대신 100% 로 맞춤 */
+  overflow: visible;
+}
+
+/* 뷰포트에 고정 — 그리드 SVG 밀도는 항상 ~100vh 기준 (스크롤 길이와 무관) */
+.gridFixed {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* 래스터 타이틀(글래스 전송용) — 첫 화면 구간만 */
+.backdrop {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 0;
+  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* 글래스 오브 WebGL (비활성 시 렌더 없음) */
+.glassLayer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  min-height: 100%;
+  pointer-events: none;
+}
+
+.foreground {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  margin: 0 auto;
+}

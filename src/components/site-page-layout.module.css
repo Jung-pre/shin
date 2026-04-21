@@ -1,0 +1,16 @@
+.main {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  isolation: isolate;
+}
+
+.body {
+  flex: 1;
+  width: 100%;
+  max-width: min(1200px, 90vw);
+  margin: 0 auto;
+  padding: clamp(16px, 3vw, 32px) clamp(16px, 3vw, 40px) 48px;
+}

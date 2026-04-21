@@ -48,14 +48,39 @@ const toPath = (points: Point[]) => {
   return points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 };
 
-const SCROLL_SENSITIVITY = 0.034;
-const EPSILON = 0.0008;
-const SPRING_STIFFNESS = 0.26;
-const SPRING_DAMPING = 0.74;
-const SCROLL_IDLE_MS = 120;
+/** 화면 곡률이 목표를 따라가는 속도 (낮을수록 더 부드럽고 묵직함) */
+const CURVE_SMOOTH = 0.06;
+/** 이 ms 동안은 "스크롤 중"으로 보고 목표를 급히 0으로 돌리지 않음 */
+const SCROLL_IDLE_MS = 300;
+const EPSILON = 0.00035;
+/** 미세 역방향 입력으로 모드가 뒤집히며 생기는 촐랑임 방지 */
+const MODE_SWITCH_DELTA_THRESHOLD = 1.2;
+/** |curveRatio|에 곱해 실제 픽셀 변위 — 휘어짐 부호는 스크롤 방향 모드로만 고정 */
+const CURVE_DEPTH_PX = 110;
+/** 요청 반영: 현재 강도의 절반 */
+const WARP_INTENSITY_MULTIPLIER = 1.5;
+/** 앵커 기준 벤드 가중 (가로 중앙에서 강함) */
+const WARP_KX = 0.06;
+const WARP_KY = 0.34;
+const GRID_WARP_ENABLED = false;
 
-export const GridBackground = () => {
+export type GridBackgroundProps = {
+  /** 스크롤/휠이 움직이는 동안 핑크 100% 목표 */
+  scrollHot?: boolean;
+};
+
+const PINK_LERP = 0.045;
+const PINK_OUT_LERP = 0.032;
+
+export function GridBackground({ scrollHot = false }: GridBackgroundProps) {
   const backgroundRef = useRef<HTMLDivElement>(null);
+  const pinkOverlayRef = useRef<HTMLDivElement>(null);
+  const overlayRafRef = useRef(0);
+  const scrollHotRef = useRef(false);
+  const pinkSmoothedRef = useRef(0);
+  /** 아래로 스크롤: 기준 (50%w, 0) / 위로: (50%w, 100%h) — 이 모드로만 휘어짐 부호 고정 */
+  const scrollWarpModeRef = useRef<"down" | "up">("down");
+  const [scrollWarpMode, setScrollWarpMode] = useState<"down" | "up">("down");
   const rafRef = useRef<number | null>(null);
   const targetRef = useRef(0);
   const currentRef = useRef(0);
@@ -91,32 +116,38 @@ export const GridBackground = () => {
   }, []);
 
   useEffect(() => {
+    scrollHotRef.current = scrollHot;
+  }, [scrollHot]);
+
+  useEffect(() => {
+    scrollWarpModeRef.current = scrollWarpMode;
+  }, [scrollWarpMode]);
+
+  useEffect(() => {
     let previousScrollY = window.scrollY;
     let isRunning = false;
-    let velocity = 0;
     let lastScrollTime = 0;
 
     const tick = () => {
       const now = performance.now();
       const isScrolling = now - lastScrollTime < SCROLL_IDLE_MS;
 
-      if (!isScrolling) {
-        targetRef.current = 0;
-      }
+      // 스크롤 중엔 항상 고정 강도(±1), 멈추면 0으로 복귀
+      const activeDir = scrollWarpModeRef.current === "down" ? -1 : 1;
+      targetRef.current = isScrolling ? activeDir : 0;
 
-      const displacement = targetRef.current - currentRef.current;
-      velocity += displacement * SPRING_STIFFNESS;
-      velocity *= SPRING_DAMPING;
-      currentRef.current += velocity;
+      currentRef.current += (targetRef.current - currentRef.current) * CURVE_SMOOTH;
 
-      if (Math.abs(currentRef.current) < EPSILON && Math.abs(velocity) < EPSILON && !isScrolling) {
+      if (!isScrolling && Math.abs(targetRef.current) < EPSILON && Math.abs(currentRef.current) < EPSILON) {
         currentRef.current = 0;
-        velocity = 0;
       }
 
       setCurveRatio(currentRef.current);
 
-      if (Math.abs(currentRef.current) > EPSILON || Math.abs(velocity) > EPSILON || isScrolling) {
+      const deltaToTarget = Math.abs(targetRef.current - currentRef.current);
+      const stillMoving = deltaToTarget > EPSILON || Math.abs(targetRef.current) > EPSILON || isScrolling;
+
+      if (stillMoving) {
         rafRef.current = requestAnimationFrame(tick);
       } else {
         isRunning = false;
@@ -139,8 +170,15 @@ export const GridBackground = () => {
         return;
       }
 
+      if (delta > MODE_SWITCH_DELTA_THRESHOLD) {
+        scrollWarpModeRef.current = "down";
+        setScrollWarpMode("down");
+      } else if (delta < -MODE_SWITCH_DELTA_THRESHOLD) {
+        scrollWarpModeRef.current = "up";
+        setScrollWarpMode("up");
+      }
+
       lastScrollTime = performance.now();
-      targetRef.current = clamp(delta * SCROLL_SENSITIVITY, -1, 1);
       startLoop();
     };
 
@@ -155,24 +193,59 @@ export const GridBackground = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const loop = () => {
+      const pinkTarget = scrollHotRef.current ? 1 : 0;
+      const pinkK = pinkTarget > pinkSmoothedRef.current ? PINK_LERP : PINK_OUT_LERP;
+      pinkSmoothedRef.current += (pinkTarget - pinkSmoothedRef.current) * pinkK;
+
+      const pinkEl = pinkOverlayRef.current;
+      if (pinkEl) {
+        pinkEl.style.opacity = String(clamp(pinkSmoothedRef.current, 0, 1));
+      }
+
+      overlayRafRef.current = requestAnimationFrame(loop);
+    };
+
+    overlayRafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(overlayRafRef.current);
+  }, []);
+
   const width = Math.max(1, size.width);
   const height = Math.max(1, size.height);
-  const curveDepth = curveRatio * 52;
 
   const xStops = useMemo(() => createStops(width, cellSizePx), [width, cellSizePx]);
   const yStops = useMemo(() => createStops(height, cellSizePx), [height, cellSizePx]);
 
   const warpPoint = useCallback(
     (x: number, y: number): Point => {
-      const horizontalFactor = Math.sin((Math.PI * x) / width);
-      const verticalFactor = Math.sin((Math.PI * y) / height);
+      const w = width;
+      const h = height;
+      if (!GRID_WARP_ENABLED) {
+        return {
+          x: clamp(x, 0, w),
+          y: clamp(y, 0, h),
+        };
+      }
+      const mode = scrollWarpMode;
+      // 모든 라인이 동일한 모양/강도로 휘도록 y 가중을 제거
+      const xNorm = (clamp(x, 0, w) / w) * 2 - 1;
+      // 중앙이 가장 크게, 양 끝은 작게 휘는 '활' 형태 프로파일
+      const centerArc = clamp(1 - xNorm * xNorm, 0, 1);
+      const edgeSoften = 0.18;
+      const centerWeight = edgeSoften + (1 - edgeSoften) * centerArc;
+      const bend = centerWeight;
+      const eased = Math.pow(Math.abs(curveRatio), 1.08);
+      const mag = eased * CURVE_DEPTH_PX * WARP_INTENSITY_MULTIPLIER;
+      const dir = mode === "down" ? -1 : 1;
+      const amt = mag * dir;
 
       return {
-        x: clamp(x + curveDepth * 0.18 * verticalFactor, 0, width),
-        y: clamp(y + curveDepth * horizontalFactor, 0, height),
+        x: clamp(x + amt * WARP_KX * bend, 0, w),
+        y: clamp(y + amt * WARP_KY * bend, 0, h),
       };
     },
-    [curveDepth, width, height],
+    [curveRatio, width, height, scrollWarpMode],
   );
 
   const horizontalPaths = useMemo(() => {
@@ -223,9 +296,9 @@ export const GridBackground = () => {
         cellPolygons.push(points);
         tokens.push({
           id: index,
-          delay: `${(seededNoise(index + 1) * 5.2).toFixed(2)}s`,
-          duration: `${(2.4 + seededNoise(index + 17) * 3.2).toFixed(2)}s`,
-          alpha: (0.2 + seededNoise(index + 41) * 0.4).toFixed(2),
+          delay: `${(seededNoise(index + 1) * 7).toFixed(2)}s`,
+          duration: `${(3.6 + seededNoise(index + 17) * 4.8).toFixed(2)}s`,
+          alpha: (0.18 + seededNoise(index + 41) * 0.3).toFixed(2),
         });
         index += 1;
       }
@@ -256,15 +329,16 @@ export const GridBackground = () => {
   const fallbackCells = useMemo<CellToken[]>(() => {
     return Array.from({ length: 1 }, (_, index) => ({
       id: index,
-      delay: `${(seededNoise(index + 1) * 5.2).toFixed(2)}s`,
-      duration: `${(2.4 + seededNoise(index + 17) * 3.2).toFixed(2)}s`,
-      alpha: (0.2 + seededNoise(index + 41) * 0.4).toFixed(2),
+      delay: `${(seededNoise(index + 1) * 7).toFixed(2)}s`,
+      duration: `${(3.6 + seededNoise(index + 17) * 4.8).toFixed(2)}s`,
+      alpha: (0.18 + seededNoise(index + 41) * 0.3).toFixed(2),
     }));
   }, []);
 
   return (
     <div ref={backgroundRef} className={styles.background} aria-hidden>
-      <div className={styles.centerTint} />
+      <div className={styles.baseWash} />
+      <div ref={pinkOverlayRef} className={styles.scrollPink} />
       <svg className={styles.gridSvg} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
         <g className={styles.glowLayer}>
           {(glowCells.length > 0 ? glowCells : fallbackCells.map((token) => ({ id: token.id, points: "0,0 1,0 1,1 0,1", style: { "--delay": token.delay, "--duration": token.duration, "--alpha": token.alpha } as CSSProperties }))).map(

@@ -49,7 +49,11 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
     notFound();
   }
 
-  return <>{children}</>;
+  return (
+    <div lang={locale} data-locale={locale} className="locale-root">
+      {children}
+    </div>
+  );
 }
 
 export type { Locale };
