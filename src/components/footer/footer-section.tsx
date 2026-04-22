@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRef, type CSSProperties } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -152,7 +153,14 @@ export function FooterSection({ messages, className }: FooterSectionProps) {
                   {snsIcons.map((iconSrc, index) => (
                     <li key={iconSrc} className={styles.snsItem}>
                       <a href="#" className={styles.snsLink} aria-label={`sns-link-${index + 1}`}>
-                        <img src={iconSrc} alt="" className={styles.snsIcon} loading="lazy" decoding="async" />
+                        <Image
+                          src={iconSrc}
+                          alt=""
+                          width={24}
+                          height={24}
+                          className={styles.snsIcon}
+                          loading="lazy"
+                        />
                       </a>
                     </li>
                   ))}

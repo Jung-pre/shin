@@ -443,10 +443,3 @@
     justify-content: flex-start;
   }
 }
-
-/* --- 실험용 Eye R3F (라우트 미연결 시 참고용) --- */
-.eyeRoot {
-  width: 100%;
-  height: 100%;
-  min-height: 420px;
-}

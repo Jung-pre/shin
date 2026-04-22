@@ -78,6 +78,12 @@ export function GridBackground({ scrollHot = false }: GridBackgroundProps) {
   const overlayRafRef = useRef(0);
   const scrollHotRef = useRef(false);
   const pinkSmoothedRef = useRef(0);
+  /**
+   * 핑크 오버레이 RAF 를 외부(effect)에서 기상시키기 위한 트리거.
+   *   루프는 target/current 가 모두 0 근처로 수렴하면 스스로 정지해 idle CPU 를 아낀다.
+   *   scrollHot prop 이 true 로 바뀌는 edge 에서 이 함수가 호출돼 루프를 다시 깨운다.
+   */
+  const pinkStartRef = useRef<(() => void) | null>(null);
   /** 아래로 스크롤: 기준 (50%w, 0) / 위로: (50%w, 100%h) — 이 모드로만 휘어짐 부호 고정 */
   const scrollWarpModeRef = useRef<"down" | "up">("down");
   const [scrollWarpMode, setScrollWarpMode] = useState<"down" | "up">("down");
@@ -117,6 +123,10 @@ export function GridBackground({ scrollHot = false }: GridBackgroundProps) {
 
   useEffect(() => {
     scrollHotRef.current = scrollHot;
+    // scrollHot true edge 에서만 RAF 를 깨움 (가라앉은 뒤 스스로 멈추는 루프에 대응).
+    if (scrollHot) {
+      pinkStartRef.current?.();
+    }
   }, [scrollHot]);
 
   useEffect(() => {
@@ -194,7 +204,14 @@ export function GridBackground({ scrollHot = false }: GridBackgroundProps) {
   }, []);
 
   useEffect(() => {
-    const loop = () => {
+    // 성능: 이전 구현은 페이지 전 생애주기 동안 매 프레임 RAF 가 돌았다.
+    //   스크롤이 없어 target/current 모두 0 에 수렴한 뒤에도 idle CPU 를 계속 깎음.
+    //   target 이 0 이고 smoothed 도 0 근처이면 루프를 스스로 정지시키고,
+    //   scrollHot 이 true 로 바뀌는 edge 에서 `pinkStartRef` 로 재기상.
+    const PINK_STABLE_EPS = 0.001;
+    let running = false;
+
+    const tick = () => {
       const pinkTarget = scrollHotRef.current ? 1 : 0;
       const pinkK = pinkTarget > pinkSmoothedRef.current ? PINK_LERP : PINK_OUT_LERP;
       pinkSmoothedRef.current += (pinkTarget - pinkSmoothedRef.current) * pinkK;
@@ -204,11 +221,31 @@ export function GridBackground({ scrollHot = false }: GridBackgroundProps) {
         pinkEl.style.opacity = String(clamp(pinkSmoothedRef.current, 0, 1));
       }
 
-      overlayRafRef.current = requestAnimationFrame(loop);
+      const delta = Math.abs(pinkTarget - pinkSmoothedRef.current);
+      if (delta < PINK_STABLE_EPS && pinkTarget === 0) {
+        if (pinkEl) pinkEl.style.opacity = "0";
+        pinkSmoothedRef.current = 0;
+        running = false;
+        return;
+      }
+
+      overlayRafRef.current = requestAnimationFrame(tick);
     };
 
-    overlayRafRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(overlayRafRef.current);
+    const start = () => {
+      if (running) return;
+      running = true;
+      overlayRafRef.current = requestAnimationFrame(tick);
+    };
+    pinkStartRef.current = start;
+
+    start();
+
+    return () => {
+      cancelAnimationFrame(overlayRafRef.current);
+      pinkStartRef.current = null;
+      running = false;
+    };
   }, []);
 
   const width = Math.max(1, size.width);

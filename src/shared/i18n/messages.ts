@@ -289,7 +289,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
           nameEn: "VISUMAX 500",
           nameKo: "비쥬맥스 500",
           imageSrc: "/main/img_main_machine02.png",
-          bgImageSrc: "/main/img_main_machine_bg02.png",
+          bgImageSrc: "/main/img_main_machine_bg02.webp",
           description:
             "최첨단 펨토초 레이저 기술과 고정밀 안구 추적 시스템을 결합해 더 빠르고, 더 정교한 시력교정을 구현합니다",
           headlineEyebrowLabel: "Advanced Tech & Systems",
@@ -302,7 +302,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
           nameEn: "Catalys laser",
           nameKo: "카탈리스 레이저",
           imageSrc: "/main/img_main_machine03.png",
-          bgImageSrc: "/main/img_main_machine_bg03.png",
+          bgImageSrc: "/main/img_main_machine_bg03.webp",
           description:
             "3D 안구 단층 촬영(OCT)이 적용된 백내장 수술 전용 레이저로, 칼날 대신 정교한 레이저를 사용하여 수술의 안전성과 정확도를 극대화합니다",
           headlineCtaLabel: "Catalys laser",
@@ -555,7 +555,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
           nameEn: "VISUMAX 500",
           nameKo: "VisuMax 500",
           imageSrc: "/main/img_main_machine02.png",
-          bgImageSrc: "/main/img_main_machine_bg02.png",
+          bgImageSrc: "/main/img_main_machine_bg02.webp",
           description:
             "Combining advanced femtosecond laser technology with a high-precision eye-tracking system, it enables faster and more precise vision correction.",
           headlineEyebrowLabel: "Advanced Tech & Systems",
@@ -568,7 +568,7 @@ export const dictionaries: Record<Locale, Dictionary> = {
           nameEn: "Catalys laser",
           nameKo: "Catalys laser",
           imageSrc: "/main/img_main_machine03.png",
-          bgImageSrc: "/main/img_main_machine_bg03.png",
+          bgImageSrc: "/main/img_main_machine_bg03.webp",
           description:
             "A cataract-surgery laser system equipped with 3D OCT, using precise laser treatment instead of blades to maximize surgical safety and accuracy.",
           headlineCtaLabel: "Catalys laser",

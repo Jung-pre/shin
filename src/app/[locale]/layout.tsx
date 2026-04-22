@@ -4,6 +4,7 @@ import { getDictionary } from "@/shared/lib/get-dictionary";
 import { isLocale, locales, type Locale } from "@/shared/config/i18n";
 import { Gnb } from "@/components/gnb";
 import { FooterSection } from "@/components/footer/footer-section";
+import { SmoothScrollProvider } from "@/components/smooth-scroll-provider";
 
 interface LocaleLayoutProps {
   children: React.ReactNode;
@@ -58,6 +59,8 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
 
   return (
     <div lang={locale} data-locale={locale} className="locale-root">
+      {/* 전역 Smooth Scroll — Lenis 1개 인스턴스를 루트에서 관리, ScrollTrigger/Observer 와 동기화. */}
+      <SmoothScrollProvider />
       <Gnb locale={locale} />
       {children}
       <FooterSection messages={dictionary.footerSection} />

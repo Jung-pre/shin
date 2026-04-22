@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import type { MedicalTeamSectionMessages } from "@/shared/i18n/messages";
@@ -117,12 +118,14 @@ export function MedicalTeamSection({ messages }: MedicalTeamSectionProps) {
         </div>
 
         <div ref={imageFrameRef} className={styles.imageFrame} aria-hidden>
-          <img
-            src="/main/img_main_team_all.png"
+          <Image
+            src="/main/img_main_team_all.webp"
             alt=""
+            width={3840}
+            height={1010}
+            sizes="(max-width: 48rem) 100vw, 120rem"
             className={styles.teamAllImage}
             loading="lazy"
-            decoding="async"
           />
         </div>
       </div>

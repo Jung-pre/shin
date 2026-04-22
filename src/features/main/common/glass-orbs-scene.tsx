@@ -1058,7 +1058,7 @@ export interface GlassOrbsSceneProps {
   targetRef?: RefObject<HTMLElement | null>;
 }
 
-const DEFAULT_SOURCE_IMAGE = "/main/img_hero.png";
+const DEFAULT_SOURCE_IMAGE = "/main/img_hero.webp";
 
 /**
  * dev 튜닝용 글래스 Scene Config 패널 노출 스위치.
@@ -1083,7 +1083,15 @@ export const GlassOrbsScene = ({
 
   const { texture: bufferTexture, version: bufferVersion } = useImageTransmissionTexture(
     sourceImageUrl,
-    { targetRef, invalidate: invalidateCallback },
+    {
+      targetRef,
+      invalidate: invalidateCallback,
+      // img_hero.webp 가 원본 대비 세로 2배(1920×2000)로 확장되면서 실제 히어로 콘텐츠가
+      // 이미지 상단 절반(0~1000) 에 몰려 있음. 따라서 콘텐츠 중심(=전체의 1/4 지점) 을
+      // 렌즈 포커스로 잡아야 글래스 안에 "신세계안과" 타이틀이 정렬되어 보인다.
+      // 기본(0.5) 을 쓰면 확장된 빈 하단이 렌즈 중앙에 들어와 비어 보인다.
+      srcFocusY: 0.25,
+    },
   );
 
   const resetConfig = useCallback(() => setConfig(DEFAULT_CONFIG), []);

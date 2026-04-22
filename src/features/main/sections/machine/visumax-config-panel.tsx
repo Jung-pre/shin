@@ -3,11 +3,12 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
 import styles from "./visumax-config-panel.module.css";
+// 패널은 타입/상수만 필요 → 경량 config 모듈에서 import (씬 모듈 평가를 유발하지 않음).
 import {
   ENV_PRESET_OPTIONS,
   type EnvPresetKey,
   type ModelSceneConfig,
-} from "./visumax-model-scene";
+} from "./visumax-model-config";
 
 /**
  * VISUMAX 800 / 500 두 모델의 3D 씬 설정을 개별로 튜닝할 수 있는 플로팅 패널.

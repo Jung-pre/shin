@@ -34,6 +34,21 @@ export interface UseImageTransmissionTextureOptions {
    * (setVersion → React commit → Canvas 재렌더 감지) 를 제거하는 목적.
    */
   invalidate?: () => void;
+  /**
+   * 소스 이미지 내부의 가로 포커스 지점 (0 ~ 1, 기본 0.5 = 이미지 가로 정중앙).
+   * 이 지점이 targetRef 의 가로 중심 (또는 뷰포트 중심) 에 정렬된다.
+   */
+  srcFocusX?: number;
+  /**
+   * 소스 이미지 내부의 세로 포커스 지점 (0 ~ 1, 기본 0.5 = 이미지 세로 정중앙).
+   *
+   * 예시: 원본 히어로 이미지(1920×1000) 에 세로로 여백을 추가해 1920×2000 으로 확장한 경우,
+   *   실제 콘텐츠(=글래스에 비쳐야 할 부분) 는 이미지 상단 절반(Y: 0~1000) 에 위치한다.
+   *   그 중심은 전체 높이의 25% 지점이므로 `srcFocusY: 0.25` 로 지정하면 된다.
+   *   이렇게 하지 않고 기본(0.5) 을 쓰면 이미지 정중앙(=확장 여백 부분) 이 타겟에 맞춰져
+   *   렌즈 안에 비어 있는 하단부가 보이게 된다.
+   */
+  srcFocusY?: number;
 }
 
 /**
@@ -53,7 +68,15 @@ export const useImageTransmissionTexture = (
   src: string,
   options: UseImageTransmissionTextureOptions = {},
 ): ImageTransmissionTexture => {
-  const { targetRef, fit = "cover", zoom = 1, backgroundColor, invalidate } = options;
+  const {
+    targetRef,
+    fit = "cover",
+    zoom = 1,
+    backgroundColor,
+    invalidate,
+    srcFocusX = 0.5,
+    srcFocusY = 0.5,
+  } = options;
 
   const texture = useMemo((): CanvasTexture | null => {
     if (typeof document === "undefined") {
@@ -134,9 +157,12 @@ export const useImageTransmissionTexture = (
     const centerY =
       rect && rect.height > 0 ? rect.top + rect.height / 2 : viewH / 2;
 
-    // 이미지 중심(drawW/2, drawH/2) 이 centerX/Y 에 오도록 좌상단 좌표 계산
-    const drawX = centerX - drawW / 2;
-    const drawY = centerY - drawH / 2;
+    // 포커스 포인트(srcFocusX/Y · 0~1) 가 centerX/Y 에 오도록 좌상단 좌표 계산.
+    //   - 기본 0.5 면 이미지 정중앙이 타겟 중심에 정렬 (기존 동작과 동일).
+    //   - 이미지가 세로로 확장되어 콘텐츠가 상단에만 있는 경우 srcFocusY = 0.25 등으로
+    //     지정하면 콘텐츠 중심이 타겟 중심에 정렬되어 렌즈에 "알맹이" 가 보인다.
+    const drawX = centerX - drawW * srcFocusX;
+    const drawY = centerY - drawH * srcFocusY;
 
     ctx.drawImage(
       img,
@@ -149,7 +175,7 @@ export const useImageTransmissionTexture = (
     texture.needsUpdate = true;
     // demand frameloop 에서 즉시 다음 프레임 렌더를 예약. React state 체인을 우회해 지연 제거.
     invalidate?.();
-  }, [texture, targetRef, fit, zoom, backgroundColor, invalidate]);
+  }, [texture, targetRef, fit, zoom, backgroundColor, invalidate, srcFocusX, srcFocusY]);
 
   // 이미지 로드
   useEffect(() => {
@@ -209,8 +235,23 @@ export const useImageTransmissionTexture = (
       });
     };
 
-    // 스크롤은 즉시 동기 redraw — 지연 체인 제거.
-    const onScroll = () => redraw();
+    // 성능 가드: 글래스는 히어로 구간(triggerVh ≈ 0.25) 만 보이고 그 밑으론
+    //   opacity 0 으로 페이드 아웃 → SVG 오버레이로 교체된다. 그 구간에서도
+    //   스크롤마다 drawImage(1.47MB) + invalidate() 체인이 돌면 CPU·GPU 모두
+    //   불필요하게 깨어난다. 여기서 스크롤 위치가 "확실히 글래스 밖" 이면 redraw 를
+    //   스킵한다. 다시 상단으로 올라오면 위치가 조건을 통과해 자연스레 재개됨.
+    //
+    //   (crossfade triggerVh 기본 0.25 + 약간의 여유 0.05 = 0.3vh 이후 스킵)
+    const HIDDEN_SCROLL_VH = 0.3;
+    const isGlassHidden = () =>
+      window.scrollY > (window.innerHeight || 0) * (1 + HIDDEN_SCROLL_VH);
+
+    // 스크롤은 즉시 동기 redraw — 지연 체인 제거. 단, 글래스가 숨겨진
+    // 구간에서는 스킵해 passive 리스너만 등록된 상태로 둔다.
+    const onScroll = () => {
+      if (isGlassHidden()) return;
+      redraw();
+    };
     window.addEventListener("scroll", onScroll, { passive: true });
     // resize / ResizeObserver / 폰트 로드는 덜 자주 + 캔버스 재할당 가능성이 있으니 rAF 로 묶음.
     window.addEventListener("resize", scheduleRaf);

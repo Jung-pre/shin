@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
+import Image from "next/image";
 import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -127,7 +127,14 @@ export function NewsSection({ messages }: NewsSectionProps) {
             <li key={`${card.category}-${card.title}`} className={styles.cardItem}>
               <a href={card.href ?? "#"} className={styles.cardLink}>
                 <div className={styles.cardMedia}>
-                  <img src={card.imageSrc} alt={card.title} className={styles.cardImage} loading="lazy" decoding="async" />
+                  <Image
+                    src={card.imageSrc}
+                    alt={card.title}
+                    fill
+                    sizes="(max-width: 48rem) 100vw, (max-width: 80rem) 33vw, 25rem"
+                    className={styles.cardImage}
+                    loading="lazy"
+                  />
                   <span className={`${styles.cardBadge} ${getCategoryBadgeClassName(card.category)}`}>
                     {card.category}
                   </span>

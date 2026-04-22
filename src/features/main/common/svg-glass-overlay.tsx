@@ -57,9 +57,11 @@ interface CrossfadeConfig {
   bottomFadeVh: number;
 }
 
-// 기존 startVh(0.05) 대비 10vh 내려서 0.15 에서 전환.
+// img_hero 세로 2배 확장에 맞춰 추가로 10vh 더 내려 0.25 에서 전환.
+//   (이전: 0.15 → 현재: 0.25 → 히어로 콘텐츠가 더 오래 3D 글래스로 보이고,
+//    SVG 경량 버전은 히어로 섹션이 거의 화면 밖으로 빠진 뒤에 페이드 인)
 const DEFAULT_CROSSFADE: CrossfadeConfig = {
-  triggerVh: 0.15,
+  triggerVh: 0.25,
   bottomFadeVh: 0.25,
 };
 
@@ -310,13 +312,17 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       const svgTarget = overlayRef.current;
       const glassTarget = glassLayerRef?.current ?? null;
 
-      // 주의: visibility 를 opacity 와 동시에 토글하면 CSS opacity transition 이 보이지 않는다
-      //       (visibility: hidden 은 즉시 적용되어 페이드가 무시됨). 그래서 여기서는
-      //       opacity 만 건드리고 visibility 는 항상 'visible' 로 고정한다.
-      //       pointer-events: none 이 이미 걸려 있어 상호작용도 차단됨.
+      // glass 레이어 opacity/visibility 처리:
+      //   - fade 는 CSS transition(280ms) 이 담당, JS 는 target 값만 토글.
+      //   - opacity 0 으로 전환될 때 visibility 를 즉시 끄면 fade 가 보이지 않으므로
+      //     반드시 transitionend 이후에만 hidden 으로 내림 (아래 리스너).
+      //   - opacity 1 로 복귀할 때는 먼저 visibility 를 visible 로 올리고 나서 opacity 를 셋팅
+      //     (그렇지 않으면 hidden 상태에서 transition 이 발화되지 않음).
       if (glassTarget && Math.abs(glassOpacity - lastGlassOpacity) > 0.005) {
+        if (glassOpacity > 0) {
+          glassTarget.style.visibility = "visible";
+        }
         glassTarget.style.opacity = glassOpacity.toFixed(3);
-        glassTarget.style.visibility = "visible";
         lastGlassOpacity = glassOpacity;
       }
       // z-index 동적 토글:
@@ -338,6 +344,20 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       }
     };
 
+    // fade 완료 후 합성 레이어에서 제외 — compositor 비용 제거용.
+    //   · opacity transition 이 끝났을 때 opacity 가 0 이면 visibility:hidden 으로 내림.
+    //   · 다시 opacity>0 으로 올라가는 경로는 apply() 에서 미리 visible 로 돌려놓는다.
+    const glassTarget = glassLayerRef?.current ?? null;
+    const handleGlassTransitionEnd = (e: TransitionEvent) => {
+      if (e.propertyName !== "opacity") return;
+      const el = glassTarget;
+      if (!el) return;
+      if (parseFloat(el.style.opacity || "1") < 0.01) {
+        el.style.visibility = "hidden";
+      }
+    };
+    glassTarget?.addEventListener("transitionend", handleGlassTransitionEnd);
+
     const rafId = requestAnimationFrame(apply);
     window.addEventListener("scroll", apply, { passive: true });
     window.addEventListener("resize", apply);
@@ -345,6 +365,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       cancelAnimationFrame(rafId);
       window.removeEventListener("scroll", apply);
       window.removeEventListener("resize", apply);
+      glassTarget?.removeEventListener("transitionend", handleGlassTransitionEnd);
     };
   }, [glassLayerRef]);
 
@@ -368,8 +389,12 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     const svgTarget = overlayRef.current;
     const glassTarget = glassLayerRef?.current ?? null;
     if (glassTarget) {
+      // opacity 1 로 복귀하는 경로에선 transition 이 발화하려면 먼저 visible 로 되돌려야 한다.
+      // opacity 0 으로 내리는 경로에선 일단 visible 유지 — 280ms 페이드 후 transitionend 에서 hidden 처리.
+      if (glassOpacity > 0) {
+        glassTarget.style.visibility = "visible";
+      }
       glassTarget.style.opacity = glassOpacity.toFixed(3);
-      glassTarget.style.visibility = "visible";
       // 패널 조작으로 즉시 재계산하는 경로에서도 z-index 를 맞춰줘야 상태 일관성 유지.
       glassTarget.style.zIndex = isAtTop ? "3" : "1";
     }

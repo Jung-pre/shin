@@ -289,13 +289,6 @@
   height: 100%;
   aspect-ratio: 77 / 92;
   object-fit: contain;
-  /* GLB 로드 완료 시 .machineImageHidden 로 페이드아웃. 모델과 2D 이미지가 동시에 보이는
-   * 어중간한 프레임을 없애서 "모델만 떠 있는" 결과로 자연스럽게 넘어간다. */
-  transition: opacity 320ms ease;
-}
-
-.machineImageHidden {
-  opacity: 0;
 }
 
 /*
@@ -332,6 +325,16 @@
 .modelOverlay canvas {
   pointer-events: auto !important;
   touch-action: none !important;
+}
+
+/* 비활성 씬: 오버레이 본체 + 내부 캔버스 래퍼/canvas 까지 전부 이벤트 차단.
+ *   두 GLB 씬(800/500) 을 상시 마운트하고 DOM 순서상 뒤쪽(500) 이 앞쪽(800) 위에 겹치는 구조라,
+ *   비활성 씬의 자식 canvas 가 포인터를 가로채면 활성 씬이 드래그를 못 받는 문제가 생긴다.
+ *   위쪽 규칙의 `!important auto` 를 이기기 위해 여기도 `!important none` 사용. */
+.modelOverlayInactive,
+.modelOverlayInactive > div,
+.modelOverlayInactive canvas {
+  pointer-events: none !important;
 }
 
 .modelOverlay canvas {

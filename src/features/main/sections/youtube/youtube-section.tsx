@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
+import Image from "next/image";
 import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -98,12 +98,14 @@ export function YoutubeSection({ messages }: YoutubeSectionProps) {
       <div className={styles.inner}>
         <div className={styles.content}>
           <a ref={heroLinkRef} href={messages.heroHref ?? "#"} className={styles.heroLink}>
-            <img
+            <Image
               src={messages.heroImageSrc}
               alt={messages.heroImageAlt}
+              width={1988}
+              height={1118}
+              sizes="(max-width: 48rem) 100vw, 62.125rem"
               className={styles.heroImage}
               loading="lazy"
-              decoding="async"
             />
           </a>
 
@@ -126,12 +128,14 @@ export function YoutubeSection({ messages }: YoutubeSectionProps) {
                 {messages.thumbnails.map((thumbnail, index) => (
                   <li key={`${thumbnail.imageSrc}-${index}`} className={styles.thumbItem}>
                     <a href={thumbnail.href ?? "#"} className={styles.thumbLink}>
-                      <img
+                      <Image
                         src={thumbnail.imageSrc}
                         alt={thumbnail.alt}
+                        width={312}
+                        height={178}
+                        sizes="(max-width: 48rem) 50vw, 20rem"
                         className={styles.thumbImage}
                         loading="lazy"
-                        decoding="async"
                       />
                     </a>
                   </li>

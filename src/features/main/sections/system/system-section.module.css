@@ -116,6 +116,8 @@
   justify-self: end;
   width: 59.1875rem;
   height: 40.625rem;
+  /* next/image `fill` 을 쓰기 위한 컨테이닝 박스 — fill 은 position: relative/absolute/fixed 부모 필수. */
+  position: relative;
 }
 
 .image {

@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
+import Image from "next/image";
 import { useLayoutEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import gsap from "gsap";
@@ -138,7 +138,14 @@ export function SystemSection({ messages }: SystemSectionProps) {
                   exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -10 }}
                   transition={reduceMotion ? { duration: 0.2 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <img src={item.imageSrc} alt={item.title} className={styles.image} loading="lazy" decoding="async" />
+                  <Image
+                    src={item.imageSrc}
+                    alt={item.title}
+                    fill
+                    sizes="(max-width: 48rem) 100vw, 59.1875rem"
+                    className={styles.image}
+                    loading="lazy"
+                  />
                 </motion.div>
               </AnimatePresence>
             </div>

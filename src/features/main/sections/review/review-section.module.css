@@ -228,6 +228,9 @@
 
 .cardMedia {
   position: relative;
+  /* next/image fill 은 부모 높이를 따라간다 → 높이는 여기서 지정.
+   * (이전: <img> 태그가 자체 height: 20rem 을 들고 있었지만 fill 로 변환되면서 무효화됐음) */
+  height: 20rem;
   border-radius: 1.5rem;
   overflow: hidden;
 }

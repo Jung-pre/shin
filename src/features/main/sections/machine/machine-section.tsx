@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
+import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -9,11 +9,14 @@ import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import type { MachineSectionMessages } from "@/shared/i18n/messages";
 import styles from "./machine-section.module.css";
+// 경량 config 모듈에서만 정적 import — 씬 모듈(visumax-model-scene) 이 통째로
+// 딸려오면 모듈 평가 시점의 `useGLTF.preload` 로 26MB GLB 가 즉시 fetch 된다.
+// 씬 자체는 아래 next/dynamic 으로만 로드 → Machine 섹션이 실제로 필요할 때까지 지연.
 import {
   DEFAULT_MODEL_SCENE_CONFIG,
   VISUMAX_800_DEFAULT_CONFIG,
   type ModelSceneConfig,
-} from "./visumax-model-scene";
+} from "./visumax-model-config";
 import { VisumaxConfigPanel } from "./visumax-config-panel";
 
 /**
@@ -127,7 +130,7 @@ export function MachineSection({ messages }: MachineSectionProps) {
   const [titleLine1 = "", titleLine2 = ""] = titleText.split("\n");
   const topDescription = activeMachine.headlineDescription ?? messages.description;
   const ctaLabel = activeMachine.headlineCtaLabel ?? activeMachine.nameEn ?? messages.ctaLabel;
-  const sectionBgImage = activeMachine.bgImageSrc ?? "/main/img_main_machine_bg01.png";
+  const sectionBgImage = activeMachine.bgImageSrc ?? "/main/img_main_machine_bg01.webp";
 
   return (
     <section ref={sectionRef} className={styles.section} aria-label="Advanced technology systems">
@@ -148,13 +151,14 @@ export function MachineSection({ messages }: MachineSectionProps) {
           <div className={styles.copy}>
             <div className={styles.headlineBlock}>
               <p className={styles.eyebrow}>
-                <img
+                <Image
                   src="/main/img_main_machine_logo.png"
                   alt=""
+                  width={46}
+                  height={28}
                   className={styles.eyebrowDot}
-                  aria-hidden="true"
+                  aria-hidden
                   loading="lazy"
-                  decoding="async"
                 />
                 <span className={styles.eyebrowText}>{eyebrowLabel}</span>
               </p>
@@ -213,45 +217,88 @@ export function MachineSection({ messages }: MachineSectionProps) {
               exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -12 }}
               transition={reduceMotion ? { duration: 0.2 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
             >
-              <img
-                src={activeMachine.imageSrc ?? ""}
-                alt=""
-                className={`${styles.machineImage} ${isVisumax500 ? styles.machineImage500 : ""} ${isCatalysLaser ? styles.machineImageCatalys : ""} ${
-                  (isVisumax800 && modelLoaded800) || (isVisumax500 && modelLoaded500)
-                    ? styles.machineImageHidden
-                    : ""
-                }`}
-                loading="lazy"
-                decoding="async"
-              />
-              {isVisumax800 ? (
-                <div
-                  className={styles.modelOverlay}
-                  aria-hidden
-                  style={{ ["--overlay-scale" as string]: config800.overlayScale }}
-                >
-                  <VisumaxModelScene
-                    modelUrl="/main/visumax800.glb"
-                    config={config800}
-                    onLoaded={handleModel800Loaded}
-                  />
-                </div>
-              ) : null}
-              {isVisumax500 ? (
-                <div
-                  className={styles.modelOverlay}
-                  aria-hidden
-                  style={{ ["--overlay-scale" as string]: config500.overlayScale }}
-                >
-                  <VisumaxModelScene
-                    modelUrl="/main/visumax500.glb"
-                    config={config500}
-                    onLoaded={handleModel500Loaded}
-                  />
-                </div>
-              ) : null}
+              {/* GLB 씬은 아래 형제로 따로 렌더(상시 마운트) → 여기서는 2D 이미지만.
+               *   - GLB 로 대체되는 슬라이드(800/500) 에서는 모델 로드 완료 전까지만 이미지를
+               *     잠깐 보여주고 완료 시 즉시 unmount. preload 로 대부분 캐시된 상태라
+               *     800 첫 진입 시에만 짧게 보이고, 그 이후 전환(800→500)에선 modelLoaded500
+               *     가 이미 true 라 flash 가 생기지 않는다.
+               *   - Catalys 는 GLB 없음 → 그냥 이미지 노출. */}
+              {(isVisumax800 && modelLoaded800) || (isVisumax500 && modelLoaded500) ? null : (
+                <Image
+                  src={activeMachine.imageSrc ?? ""}
+                  alt=""
+                  fill
+                  sizes="(max-width: 48rem) 100vw, 60rem"
+                  className={`${styles.machineImage} ${isVisumax500 ? styles.machineImage500 : ""} ${isCatalysLaser ? styles.machineImageCatalys : ""}`}
+                  priority={false}
+                  loading="lazy"
+                />
+              )}
             </motion.div>
           </AnimatePresence>
+
+          {/* GLB 오버레이는 AnimatePresence 밖에서 "상시 마운트" 한다.
+           *   이유: 현재 activeMachine 이 될 때만 마운트하면, 전환 순간 씬이 새로
+           *   만들어지며 Canvas init 과 useGLTF 파싱 동안 modelLoaded 가 false → 2D 이미지가
+           *   1~2 프레임 flash. 섹션 진입 시점부터 양쪽 모두 마운트해두면 두 onLoaded 가
+           *   모두 즉시 발화 → 전환 시 modelLoaded 는 이미 true 라 flash 가 사라진다.
+           *
+           *   전환 모션은 motion.div 의 animate prop 으로 부여 — 활성 씬은 opacity 1,
+           *   비활성 씬은 opacity 0 + 살짝 좌측으로 밀려나감 (x:-12) 으로 슬라이드 페이드.
+           *   포인터 이벤트는 비활성일 때만 차단해 드래그 간섭을 막는다. */}
+          {/* 포인터 제어 3 레이어 동시 차단이 필요:
+           *   1) motion.div wrapper (.imageWrap): position:absolute 에 큰 영역을 차지하는 empty div 라
+           *      자체가 hit target 이 됨 → 비활성 시 pointerEvents:none 필수.
+           *   2) .modelOverlay 본체: 동일 이유.
+           *   3) .modelOverlay > div / canvas: CSS 의 `pointer-events: auto !important` 를 이겨야 하므로
+           *      `.modelOverlayInactive` 클래스로 `!important none` 주입.
+           *   DOM 순서상 500 wrapper 가 800 위에 겹쳐 있어 한 곳이라도 뚫리면 800 이 드래그를 못 받음. */}
+          <motion.div
+            className={`${styles.imageWrap}`}
+            aria-hidden
+            initial={false}
+            animate={
+              reduceMotion
+                ? { opacity: isVisumax800 ? 1 : 0 }
+                : { opacity: isVisumax800 ? 1 : 0, x: isVisumax800 ? 0 : -12 }
+            }
+            transition={reduceMotion ? { duration: 0.2 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            style={{ pointerEvents: isVisumax800 ? "auto" : "none" }}
+          >
+            <div
+              className={`${styles.modelOverlay} ${isVisumax800 ? "" : styles.modelOverlayInactive}`}
+              style={{ ["--overlay-scale" as string]: config800.overlayScale }}
+            >
+              <VisumaxModelScene
+                modelUrl="/main/visumax800.glb"
+                config={config800}
+                onLoaded={handleModel800Loaded}
+              />
+            </div>
+          </motion.div>
+          <motion.div
+            className={`${styles.imageWrap} ${styles.imageWrap500}`}
+            aria-hidden
+            initial={false}
+            animate={
+              reduceMotion
+                ? { opacity: isVisumax500 ? 1 : 0 }
+                : { opacity: isVisumax500 ? 1 : 0, x: isVisumax500 ? 0 : -12 }
+            }
+            transition={reduceMotion ? { duration: 0.2 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            style={{ pointerEvents: isVisumax500 ? "auto" : "none" }}
+          >
+            <div
+              className={`${styles.modelOverlay} ${isVisumax500 ? "" : styles.modelOverlayInactive}`}
+              style={{ ["--overlay-scale" as string]: config500.overlayScale }}
+            >
+              <VisumaxModelScene
+                modelUrl="/main/visumax500.glb"
+                config={config500}
+                onLoaded={handleModel500Loaded}
+              />
+            </div>
+          </motion.div>
         </div>
       </div>
 

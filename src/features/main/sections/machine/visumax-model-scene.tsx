@@ -3,6 +3,22 @@
 import { memo, Suspense, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Bounds, Environment, PresentationControls, useGLTF } from "@react-three/drei";
+import {
+  DEFAULT_MODEL_SCENE_CONFIG,
+  type ModelSceneConfig,
+} from "./visumax-model-config";
+
+// 타입/상수/프리셋은 경량 config 모듈에서 재내보내기.
+//   machine-section 같은 "위쪽" 코드가 아래 경로를 기존대로 import 하면
+//   이 씬 모듈 전체가 딸려 들어와 GLB 26MB 가 즉시 fetch 된다. 그래서 static
+//   참조는 전부 경량 config 로 옮겼고, 여기서는 기존 호환을 위해 re-export.
+export {
+  ENV_PRESET_OPTIONS,
+  DEFAULT_MODEL_SCENE_CONFIG,
+  VISUMAX_800_DEFAULT_CONFIG,
+  type EnvPresetKey,
+  type ModelSceneConfig,
+} from "./visumax-model-config";
 
 /**
  * GLTF 모델을 2D 이미지 위에 겹쳐 올리는 범용 3D 오버레이 씬.
@@ -11,7 +27,9 @@ import { Bounds, Environment, PresentationControls, useGLTF } from "@react-three
  * - `<Bounds fit>` 이 모델 bbox 를 자동 계산해 프레임에 맞춰 주므로 모델 크기·원점에 상관없이 들어맞음.
  * - `<PresentationControls>` 로 드래그 시 소폭 회전만 허용 — 풀 오빗 대신 "앞쪽만 살짝" 틸트.
  *   놓으면 snap 으로 기본 자세로 스프링 복귀. 휠 스크롤은 가로채지 않아 페이지 스크롤은 그대로.
- * - 사용하는 모델은 모듈 평가 시점에 preload 해 슬라이드 전환 시 멈칫이 없도록.
+ * - 사용하는 모델은 이 모듈(= 씬) 이 실제로 로드될 때만 preload. 이 파일은
+ *   `next/dynamic` 으로만 import 되므로 Machine 섹션이 화면에 붙기 전까지 26MB
+ *   GLB 다운로드가 시작되지 않는다.
  * - 설정값(크기/위치/회전/컨트롤러 범위) 은 부모(config) 가 주입. 기본값은
  *   `DEFAULT_MODEL_SCENE_CONFIG` 참고.
  */
@@ -22,99 +40,12 @@ const VISUMAX_500_URL = "/main/visumax500.glb";
 useGLTF.preload(VISUMAX_800_URL);
 useGLTF.preload(VISUMAX_500_URL);
 
-const SPRING_CONFIG = { mass: 1, tension: 170, friction: 26 };
-
-/** drei <Environment preset> 허용값 — 너무 많아서 실용적인 것만 추려서 노출. */
-export type EnvPresetKey =
-  | "studio"
-  | "city"
-  | "apartment"
-  | "sunset"
-  | "dawn"
-  | "night"
-  | "warehouse"
-  | "forest"
-  | "park"
-  | "lobby";
-
-export const ENV_PRESET_OPTIONS: EnvPresetKey[] = [
-  "studio",
-  "city",
-  "apartment",
-  "sunset",
-  "dawn",
-  "night",
-  "warehouse",
-  "forest",
-  "park",
-  "lobby",
-];
-
 /**
- * 모델 씬 외부 제어 설정.
- * - overlayScale: 3D Canvas 를 감싼 DOM(.modelOverlay) 자체의 크기 배수.
- *     CSS width/height 를 100% → X% 로 키워서 Canvas 네이티브 해상도까지 같이 커진다.
- *     Bounds 는 커진 Canvas 에 맞춰 다시 피팅 → 모델 시각 크기도 실제로 커지고 잘리지 않음.
- *     (model-level `scale` 은 프레임 안에서만 키워서 프레임 경계로 잘리는 반면,
- *      overlayScale 은 프레임 자체를 키움.)
- * - scale: Bounds 자동 피팅 후 모델에만 곱해질 크기 배수 (1 = 기본). 미세 조정용.
- * - positionX/Y/Z: 월드 좌표 오프셋 (rem 이 아니라 3D 단위).
- * - rotationX/Y: 라디안. 컨트롤러 드래그 전 기본 자세.
- * - azimuthLimit/polarLimit: PresentationControls 가 허용할 드래그 회전 범위(좌우 대칭).
- * - ambientIntensity/directionalIntensity: DOM 등가 3점 라이트 세기.
- * - envPreset/envIntensity: 반사/쨍함 주범. "studio" 는 화이트가 강해서 기본을 "apartment" 로.
+ * PresentationControls 스프링 감쇠 — drei 10.7 에서 `config={{mass,tension,friction}}`
+ *   API 가 `damping` (단일 숫자) 로 대체됨. 기존 기본값 `{mass:1, tension:170, friction:26}` 은
+ *   critical damping ratio ≈ 0.998 수준이라 사실상 `damping: 1` 과 거의 동일 → 그대로 1 사용.
  */
-export interface ModelSceneConfig {
-  overlayScale: number;
-  scale: number;
-  positionX: number;
-  positionY: number;
-  positionZ: number;
-  rotationX: number;
-  rotationY: number;
-  azimuthLimit: number;
-  polarLimit: number;
-  ambientIntensity: number;
-  directionalIntensity: number;
-  envIntensity: number;
-  envPreset: EnvPresetKey;
-}
-
-export const DEFAULT_MODEL_SCENE_CONFIG: ModelSceneConfig = {
-  overlayScale: 1,
-  scale: 1,
-  positionX: 0,
-  positionY: 0,
-  positionZ: 0,
-  rotationX: 0,
-  rotationY: 0,
-  azimuthLimit: Math.PI / 7, // ≈ ±25°
-  polarLimit: Math.PI / 12, // ≈ ±15°
-  // 이전 기본값이 너무 쨍(휘도 포화) → 톤 다운. 필요시 패널에서 다시 올릴 것.
-  //   envPreset 은 "studio" 로 통일 (요구사항). 대신 envIntensity 로 세기를 꺾어 포화 억제.
-  ambientIntensity: 0.35,
-  directionalIntensity: 0.7,
-  envIntensity: 0.45,
-  envPreset: "studio",
-};
-
-const DEG = Math.PI / 180;
-
-/**
- * VISUMAX 800 전용 초기값 — 디자인 리뷰에서 확정된 위치/자세.
- *   overlayScale 1.14 로 프레임을 살짝 키워 모델이 이미지 위에서 충분히 크게 보이도록.
- *   rotation 은 앞쪽을 살짝 기울여 정면/측면 중간 뷰 (tilt 4.5° / yaw -14.4°).
- */
-export const VISUMAX_800_DEFAULT_CONFIG: ModelSceneConfig = {
-  ...DEFAULT_MODEL_SCENE_CONFIG,
-  overlayScale: 1.2,
-  scale: 1,
-  positionX: -0.2,
-  positionY: 0,
-  positionZ: 0,
-  rotationX: 4.5 * DEG,
-  rotationY: -14.4 * DEG,
-};
+const SPRING_DAMPING = 1;
 
 interface GltfModelProps {
   url: string;
@@ -181,6 +112,9 @@ export const VisumaxModelScene = ({
     <Canvas
       camera={{ position: [0, 0, 4], fov: 35 }}
       dpr={[1, 2]}
+      // 주의: drei PresentationControls 는 useFrame 내부에서 invalidate() 를 호출하지 않는다.
+      //   frameloop="demand" 로 두면 드래그 중에도 useFrame 이 돌지 않아 스프링 애니메이션이
+      //   작동하지 않음 → 기본값(always) 유지.
       gl={{ alpha: true, antialias: true, preserveDrawingBuffer: false }}
       style={{ background: "transparent" }}
     >
@@ -208,7 +142,7 @@ export const VisumaxModelScene = ({
             snap
             polar={polar}
             azimuth={azimuth}
-            config={SPRING_CONFIG}
+            damping={SPRING_DAMPING}
           >
             <group rotation={[config.rotationX, config.rotationY, 0]} scale={config.scale}>
               <BoundedModel url={modelUrl} onReady={onLoaded} />

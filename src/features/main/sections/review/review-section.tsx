@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import gsap from "gsap";
@@ -209,7 +209,14 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
                 aria-label="이전 후기"
                 onClick={() => handleSlide(-1)}
               >
-                <img src="/main/btn_left.png" alt="" aria-hidden="true" loading="lazy" decoding="async" />
+                <Image
+                  src="/main/btn_left.png"
+                  alt=""
+                  width={37}
+                  height={37}
+                  aria-hidden
+                  loading="lazy"
+                />
               </button>
               <button
                 type="button"
@@ -217,7 +224,14 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
                 aria-label="다음 후기"
                 onClick={() => handleSlide(1)}
               >
-                <img src="/main/btn_right.png" alt="" aria-hidden="true" loading="lazy" decoding="async" />
+                <Image
+                  src="/main/btn_right.png"
+                  alt=""
+                  width={37}
+                  height={37}
+                  aria-hidden
+                  loading="lazy"
+                />
               </button>
             </div>
           </div>
@@ -244,7 +258,14 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
               <li key={`${card.imageSrc}-${index}`} className={styles.cardItem}>
                 <a href={card.href ?? "#"} className={styles.cardLink}>
                   <div className={styles.cardMedia}>
-                    <img src={card.imageSrc} alt={card.label} className={styles.cardImage} loading="lazy" decoding="async" />
+                    <Image
+                      src={card.imageSrc}
+                      alt={card.label}
+                      fill
+                      sizes="(max-width: 48rem) 100vw, (max-width: 80rem) 33vw, 28rem"
+                      className={styles.cardImage}
+                      loading="lazy"
+                    />
                     <div className={styles.cardOverlay}>
                       <ReviewLockIcon />
                       <p className={styles.cardOverlayText}>

@@ -27,11 +27,30 @@ import { MedicalTeamSection } from "@/features/main/sections/medical-team/medica
 import { MachineSection } from "@/features/main/sections/machine/machine-section";
 import { ReviewSection } from "@/features/main/sections/review/review-section";
 import { SystemSection } from "@/features/main/sections/system/system-section";
-import { BlogSection } from "@/features/main/sections/blog/blog-section";
-import { NewsSection } from "@/features/main/sections/news/news-section";
-import { YoutubeSection } from "@/features/main/sections/youtube/youtube-section";
-import { YoutubeTransitionSection } from "@/features/main/sections/youtube/youtube-transition-section";
 import styles from "./main-page.module.css";
+
+/**
+ * 하단(Below-the-fold) 섹션은 초기 번들 용량을 줄이기 위해 동적 로딩.
+ *   - ssr: true (기본값) 유지 → HTML 은 서버에서 렌더 돼 레이아웃 시프트/ SEO 문제 없음.
+ *   - 단, 이 섹션들의 클라이언트 JS(GSAP 애니메이션 코드 등)는 별도 chunk 로 분리되어
+ *     최초 로드 시 다운로드/파싱에 포함되지 않고, 필요 시점(스크롤 직전)에 스트리밍.
+ * 주의: loading placeholder 는 의도적으로 null. 각 섹션 HTML 은 SSR 으로 이미 존재하므로
+ *       클라이언트 하이드레이션 지연이 있어도 시각적 공백이 생기지 않는다.
+ */
+const BlogSection = dynamic(() =>
+  import("@/features/main/sections/blog/blog-section").then((m) => m.BlogSection),
+);
+const NewsSection = dynamic(() =>
+  import("@/features/main/sections/news/news-section").then((m) => m.NewsSection),
+);
+const YoutubeSection = dynamic(() =>
+  import("@/features/main/sections/youtube/youtube-section").then((m) => m.YoutubeSection),
+);
+const YoutubeTransitionSection = dynamic(() =>
+  import("@/features/main/sections/youtube/youtube-transition-section").then(
+    (m) => m.YoutubeTransitionSection,
+  ),
+);
 
 /** 잠시 끔 — 다시 켤 때 `true`로 바꾸고 아래 글래스 레이어 렌더 복구 */
 const GLASS_ORBS_ENABLED = true;

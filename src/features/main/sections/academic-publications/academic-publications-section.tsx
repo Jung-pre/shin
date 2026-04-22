@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element -- 정적 카드 썸네일 */
+import Image from "next/image";
 import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -162,7 +162,15 @@ export function AcademicPublicationsSection({ messages }: AcademicPublicationsSe
                 href="#"
                 aria-label={`${messages.cardViewMore} — ${index + 1}`}
               >
-                <img src={src} alt="" className={styles.cardImage} loading="lazy" decoding="async" />
+                <Image
+                  src={src}
+                  alt=""
+                  width={646}
+                  height={904}
+                  sizes="(max-width: 48rem) 50vw, (max-width: 80rem) 20vw, 16rem"
+                  className={styles.cardImage}
+                  loading="lazy"
+                />
                 <span className={styles.hoverLayer}>
                   <span className={styles.cardViewBtn}>
                     <span className={styles.cardViewBtnText}>{messages.cardViewMore}</span>

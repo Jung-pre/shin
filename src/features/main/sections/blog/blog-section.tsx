@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
+import Image from "next/image";
 import { useRef } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -106,7 +106,14 @@ export function BlogSection({ messages }: BlogSectionProps) {
           </div>
 
           <a ref={heroCardRef} href={messages.heroHref ?? "#"} className={styles.heroCard}>
-            <img src={messages.heroImageSrc} alt={messages.heroTitle} className={styles.heroImage} loading="lazy" decoding="async" />
+            <Image
+              src={messages.heroImageSrc}
+              alt={messages.heroTitle}
+              fill
+              sizes="(max-width: 48rem) 100vw, 62.25rem"
+              className={styles.heroImage}
+              loading="lazy"
+            />
             <div className={styles.heroMeta}>
               <p className={styles.heroDate}>{messages.heroDate}</p>
               <p className={styles.heroTitle}>{messages.heroTitle}</p>
@@ -156,14 +163,22 @@ export function BlogSection({ messages }: BlogSectionProps) {
                     </div>
                   </div>
                   <div className={styles.postThumbWrap}>
-                    <img src={post.thumbnailSrc} alt={post.title} className={styles.postThumb} loading="lazy" decoding="async" />
-                    <img
+                    <Image
+                      src={post.thumbnailSrc}
+                      alt={post.title}
+                      width={96}
+                      height={96}
+                      className={styles.postThumb}
+                      loading="lazy"
+                    />
+                    <Image
                       src="/main/img_main_blog_hover.png"
                       alt=""
+                      width={58}
+                      height={58}
                       className={styles.postThumbHover}
-                      aria-hidden="true"
+                      aria-hidden
                       loading="lazy"
-                      decoding="async"
                     />
                   </div>
                 </div>
