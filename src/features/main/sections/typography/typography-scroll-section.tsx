@@ -14,22 +14,28 @@ const SLIDE_TRANSITION = {
 
 gsap.registerPlugin(ScrollTrigger);
 
-const SCROLL_SLIDES = 3;
+/** 섹션 전체 스크롤 길이(3문구 + 마지막 100vh는 3번 유지) */
+const SECTION_HEIGHT_VH = 400;
+const SLIDE_COUNT = 3;
 
 export interface TypographyScrollSectionProps {
   messages: TypographySectionMessages;
 }
 
+/**
+ * 섹션 총 400vh 기준: 0~100vh → 1번, 100~200vh → 2번, 200vh~끝(200~400vh) → 3번 유지
+ * (progress: 0~0.25 / 0.25~0.5 / 0.5~1)
+ */
 function indexFromProgress(progress: number): number {
-  if (progress < 1 / 3) return 0;
-  if (progress < 2 / 3) return 1;
+  if (progress < 0.25) return 0;
+  if (progress < 0.5) return 1;
   return 2;
 }
 
 export function TypographyScrollSection({ messages }: TypographyScrollSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const pinRef = useRef<HTMLDivElement>(null);
-  const slides = useMemo(() => messages.slides.slice(0, SCROLL_SLIDES), [messages]);
+  const slides = useMemo(() => messages.slides.slice(0, SLIDE_COUNT), [messages]);
   const [activeIndex, setActiveIndex] = useState(0);
   const reduceMotion = useReducedMotion();
 
@@ -70,7 +76,7 @@ export function TypographyScrollSection({ messages }: TypographyScrollSectionPro
     <section
       ref={sectionRef}
       className={styles.section}
-      style={{ height: `${SCROLL_SLIDES * 100}vh` }}
+      style={{ height: `${SECTION_HEIGHT_VH}vh` }}
       aria-label="Clinic message"
     >
       <div ref={pinRef} className={styles.pinShell}>

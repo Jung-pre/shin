@@ -99,7 +99,8 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: section,
-          start: "top 74%",
+          // 섹션이 뷰포트에 조금만 들어와도 재생되도록(이전: top 74% = 스크롤이 더 필요했음)
+          start: "top 90%",
           once: true,
         },
       });
@@ -107,7 +108,7 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
       tl.to(headlineBlockRef.current, {
         autoAlpha: 1,
         y: 0,
-        duration: 0.9,
+        duration: 0.7,
         ease: "power3.out",
       })
         .to(
@@ -115,32 +116,33 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.88,
+            duration: 0.58,
             ease: "power3.out",
           },
-          "-=0.52",
+          "-=0.4",
         )
         .to(
           tabsRef.current,
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.72,
+            duration: 0.5,
             ease: "power2.out",
           },
-          "-=0.42",
+          "-=0.36",
         )
         .to(
           cardLinks,
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.62,
+            duration: 0.38,
             ease: "power2.out",
-            stagger: 0.11,
+            stagger: 0.04,
             clearProps: "opacity,visibility,transform",
           },
-          "-=0.24",
+          // 탭/슬라이드와 겹쳐 카드 그리드가 이전보다 훨씬 이른 시점에 등장
+          "-=0.52",
         );
     },
     { scope: sectionRef, dependencies: [reduceMotion] },
