@@ -1,0 +1,335 @@
+.section {
+  width: 100%;
+  background: transparent;
+  /* Gnb 와 함께 레이아웃 단에서 고정 렌더되기 때문에, 본문의 마지막 pinning 섹션
+   * (YoutubeTransitionSection) 이 풀릴 여유를 확보해 주는 상단 여백.
+   * 본문 마지막 scroll pin 이 unpin 되기 전에 footer 가 치고 올라오면
+   * 애니메이션이 중간에 잘리므로 100vh 를 확보해 둔다. */
+  margin-top: 100vh;
+}
+
+.inner {
+  padding: 6rem 8.12rem;
+}
+
+.content {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 2.5rem;
+}
+
+.leftColumn {
+  width: 38rem;
+  max-width: 100%;
+  color: #fff;
+}
+
+.policyList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.policyItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.policyItem:not(:last-child)::after {
+  content: "";
+  width: 0.0625rem;
+  height: 0.875rem;
+  background: #fff;
+}
+
+.policyLink {
+  color: #fff;
+  text-decoration: none;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.25rem;
+  font-style: normal;
+  font-weight: 300;
+  line-height: 140%;
+  letter-spacing: -0.03125rem;
+}
+
+.policyItem:not(:last-child) {
+  margin-right: 0.75rem;
+}
+
+.title {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.policyList + .title {
+  margin-top: 1.5rem;
+}
+
+.titleLine {
+  font-family: var(--font-pretendard-stack);
+  font-size: 3.125rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 130%;
+  letter-spacing: -0.09375rem;
+  background: linear-gradient(180deg, #fff 47.69%, #efccff 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.infoGrid {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  display: grid;
+  grid-template-columns: 20.8rem 15.5rem;
+  gap: 3.12rem;
+}
+
+.infoBlock {
+  min-width: 0;
+}
+
+.infoBlock:first-child {
+  width: 20.8rem;
+  max-width: 20.8rem;
+}
+
+.infoBlock:nth-child(2) {
+  width: 15.5rem;
+  max-width: 15.5rem;
+}
+
+.infoTitle {
+  margin: 0;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.875rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 150%;
+  letter-spacing: -0.05625rem;
+}
+
+.infoTitleSub {
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.5rem;
+  font-style: normal;
+  font-weight: 300;
+  line-height: 150%;
+  letter-spacing: -0.045rem;
+}
+
+.hoursRows {
+  margin-top: 0.75rem;
+}
+
+.infoLine {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 0.9rem;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.25rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 150%;
+  letter-spacing: -0.0375rem;
+}
+
+.infoLabel {
+  white-space: nowrap;
+}
+
+.infoMutedLabel {
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.25rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 150%;
+  letter-spacing: 0.0125rem;
+}
+
+.infoTime {
+  justify-self: end;
+  text-align: right;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.25rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 150%;
+  letter-spacing: 0.0125rem;
+}
+
+.hoursNote {
+  margin: 0.3rem 0 0;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 150%;
+  letter-spacing: -0.03rem;
+}
+
+.contactValue {
+  margin: 0.85rem 0 0;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 3.125rem;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 130%;
+  letter-spacing: -0.10938rem;
+}
+
+
+.bottomBrand {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.bottomBrandTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.brandLogo {
+  display: block;
+  width: 12.3rem;
+  height: 2.02rem;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.snsList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.snsItem {
+  display: inline-flex;
+}
+
+.snsLink {
+  display: flex;
+  width: 3.125rem;
+  height: 3.125rem;
+  padding: 0.78125rem;
+  justify-content: center;
+  align-items: center;
+  border-radius: 0.625rem;
+  border: 0.833px solid #fff;
+  text-decoration: none;
+}
+
+.snsIcon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.companyInfoLine {
+  margin: 0.75rem 0 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 1.5rem;
+  row-gap: 0.25rem;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: var(--font-pretendard-stack);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 160%;
+}
+
+.companyInfoPair {
+  display: inline-flex;
+  align-items: center;
+}
+
+.companyInfoLabel {
+  margin-right: 0.5rem;
+}
+
+.companyInfoValue {
+  margin-right: 0;
+}
+
+.addressLine {
+  margin: 0.25rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: var(--font-pretendard-stack);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 160%;
+}
+
+.addressLabel {
+  flex-shrink: 0;
+}
+
+.copyright {
+  margin: 0.75rem 0 0;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.875rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 150%;
+  letter-spacing: -0.02625rem;
+}
+
+.mapPanel {
+  width: 53.9375rem;
+  height: 44.1875rem;
+  flex-shrink: 0;
+  border-radius: 1.875rem;
+  background: var(--footer-map-bg) lightgray 50% / cover no-repeat;
+}
+
+@media (max-width: 1200px) {
+  .inner {
+    padding: 4rem 2rem;
+  }
+
+  .content {
+    flex-direction: column;
+  }
+
+  .leftColumn {
+    width: 100%;
+  }
+
+  .mapPanel {
+    width: 100%;
+    max-width: 53.9375rem;
+    height: auto;
+    aspect-ratio: 53.9375 / 44.1875;
+  }
+}

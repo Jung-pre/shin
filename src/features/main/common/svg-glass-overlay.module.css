@@ -1,0 +1,209 @@
+/*
+ * 스크롤 지속형 글래스 오버레이.
+ * .glassLayer(3D Canvas) 와 같은 z-index 에서 크로스페이드되며,
+ * 3D 가 1→0 으로 내려갈 때 이 레이어가 0→1 로 올라온다.
+ *
+ * position: fixed 로 뷰포트에 고정 — 페이지 끝까지 같은 자리에 떠 있음.
+ * 그리드 bg(z:0) 위·foreground 콘텐츠(z:2) 아래에 위치하도록 z:1.
+ * 스크롤해서 불투명한 섹션 배경이 올라오면 자연스럽게 가려진다.
+ * pointer-events: none 으로 뒤 DOM 상호작용은 그대로 통과.
+ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  /* visibility 를 JS 에서 토글하면 opacity CSS transition 이 즉시 사라져 페이드가 안 보인다.
+   * pointer-events: none 이 이미 있으니 visibility 는 건드리지 않고 opacity 만으로 제어. */
+  will-change: opacity;
+  transition: opacity 280ms ease;
+}
+
+/* lens1 은 뷰포트 중앙 고정. lens2 는 transform(rem) 으로 독립 이동. */
+.lensGroup {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+/* Max 지름 31.1rem 기준 — 3D Canvas 의 maxDiameterRem 과 동일하게 맞춰
+ * 크로스페이드 시 두 버전의 실루엣이 같은 크기로 포개짐.
+ * transform 은 LensConfigPanel 의 offset/scale 이 inline style 로 주입. */
+.lens1 {
+  position: relative;
+  width: 31.1rem;
+  height: 31.1rem;
+  flex-shrink: 0;
+  will-change: transform;
+}
+
+/* SVG2 viewBox 420x535 → 420/535 ≈ 0.785 비율
+ * height 31.1rem 기준 width = 24.42rem. */
+.lens2 {
+  position: relative;
+  width: 24.42rem;
+  height: 31.1rem;
+  flex-shrink: 0;
+  will-change: transform;
+}
+
+/* 모바일 — 최대 화면 대비 축소. 원본 비율은 유지. */
+@media (max-width: 480px) {
+  .lens1 {
+    width: 20.4rem;
+    height: 20.4rem;
+  }
+
+  .lens2 {
+    width: 16.02rem;
+    height: 20.4rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Lens2 전용 옵션 패널 — 3D ConfigLayer 와 구분되도록 하단 좌측에 배치. */
+/* ------------------------------------------------------------------ */
+
+.panel {
+  position: fixed;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.panelToggle {
+  border: 0;
+  border-radius: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(17, 17, 17, 0.76);
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.panelPopup {
+  width: 18rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.75rem;
+  background: rgba(17, 17, 17, 0.94);
+  color: #fff;
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.panelTitle {
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.panelSection {
+  margin-top: 0.9rem;
+  padding-top: 0.7rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.panelSection:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.panelSectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.55rem;
+}
+
+.panelSectionTitle {
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #f2e8ff;
+}
+
+.panelReset {
+  border: 0;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.panelReset:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.panelField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.panelField + .panelField {
+  margin-top: 0.6rem;
+}
+
+.panelField span {
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.75rem;
+}
+
+.panelField input[type="range"] {
+  appearance: none;
+  width: 100%;
+  height: 0.3rem;
+  border-radius: 999rem;
+  background: rgba(213, 199, 230, 0.45);
+  outline: none;
+}
+
+.panelField input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  border: 0;
+  background: #f2e8ff;
+  cursor: pointer;
+}
+
+.panelField input[type="range"]::-moz-range-track {
+  height: 0.3rem;
+  border-radius: 999rem;
+  background: rgba(213, 199, 230, 0.45);
+}
+
+.panelField input[type="range"]::-moz-range-thumb {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  border: 0;
+  background: #f2e8ff;
+  cursor: pointer;
+}

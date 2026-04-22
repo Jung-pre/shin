@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, useState, type FormEvent } from "react";
+import { Suspense, useRef, useState, type FormEvent, type RefObject } from "react";
 import clsx from "clsx";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Float } from "@react-three/drei";
@@ -12,6 +12,8 @@ import styles from "./main-hero.module.css";
 export interface MainHeroProps {
   heroQuickBar: HeroQuickBarMessages;
   locale: Locale;
+  /** 글래스 렌즈가 정합될 타이틀(h1) ref — MainPage 에서 GlassOrbsScene 과 공유 */
+  titleRef?: RefObject<HTMLHeadingElement | null>;
 }
 
 /* ---------- 퀵 상담 바 ---------- */
@@ -205,15 +207,22 @@ function QuickBar({ messages, locale }: { messages: HeroQuickBarMessages; locale
 /* ---------- 메인 히어로(첫 화면) ---------- */
 
 /** 그리드·글래스·타이틀은 `MainPage` 전역 레이어 — 여기서는 퀵바가 있는 히어로 구역만. */
-export function MainHero({ heroQuickBar, locale }: MainHeroProps) {
+export function MainHero({ heroQuickBar, locale, titleRef }: MainHeroProps) {
+  const titleText = "신세계안과";
+
   return (
     <section className={styles.section} aria-label="Hero">
       <div className={styles.titleWrap}>
-        <h1 className={styles.title} data-raster-title>
-          신세계안과
+        {/* h1 자체는 글래스 텍스처 bbox 기준이라 transform 금지 — 내부 span 만 애니메이션. */}
+        <h1 ref={titleRef} className={styles.title} data-hero-intro="title" aria-label={titleText}>
+          {Array.from(titleText).map((ch, i) => (
+            <span key={`${ch}-${i}`} className={styles.titleChar} data-hero-char aria-hidden>
+              {ch}
+            </span>
+          ))}
         </h1>
       </div>
-      <div className={styles.quickDock}>
+      <div className={styles.quickDock} data-hero-intro="quickbar">
         <QuickBar messages={heroQuickBar} locale={locale} />
       </div>
     </section>

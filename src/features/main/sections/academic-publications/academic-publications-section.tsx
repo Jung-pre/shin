@@ -1,4 +1,10 @@
+"use client";
+
 /* eslint-disable @next/next/no-img-element -- 정적 카드 썸네일 */
+import { useRef } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useGSAP } from "@gsap/react";
 import type { AcademicPublicationsSectionMessages } from "@/shared/i18n/messages";
 import styles from "./academic-publications-section.module.css";
 
@@ -43,9 +49,75 @@ export interface AcademicPublicationsSectionProps {
   messages: AcademicPublicationsSectionMessages;
 }
 
+gsap.registerPlugin(ScrollTrigger, useGSAP);
+
 export function AcademicPublicationsSection({ messages }: AcademicPublicationsSectionProps) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const copyRef = useRef<HTMLDivElement>(null);
+  const ctaWrapRef = useRef<HTMLDivElement>(null);
+  const cardGridRef = useRef<HTMLUListElement>(null);
+
+  useGSAP(
+    () => {
+      const section = sectionRef.current;
+      if (!section) return;
+
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const cardItems = Array.from(cardGridRef.current?.querySelectorAll(`.${styles.cardItem}`) ?? []);
+
+      if (reduceMotion) {
+        gsap.set([copyRef.current, ctaWrapRef.current, ...cardItems].filter(Boolean), { autoAlpha: 1, clearProps: "all" });
+        return;
+      }
+
+      gsap.set([copyRef.current, ctaWrapRef.current], {
+        autoAlpha: 0,
+        y: 28,
+      });
+
+      gsap.set(cardItems, {
+        autoAlpha: 0,
+        y: 20,
+      });
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: "top 76%",
+          once: true,
+        },
+      });
+
+      tl.to(copyRef.current, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.88,
+        ease: "power3.out",
+      })
+        .to(
+          ctaWrapRef.current,
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.78,
+            ease: "power3.out",
+          },
+          "-=0.44",
+        )
+        .to(cardItems, {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.58,
+          ease: "power2.out",
+          stagger: 0.1,
+          clearProps: "opacity,visibility,transform",
+        });
+    },
+    { scope: sectionRef },
+  );
+
   return (
-    <section className={styles.section} aria-labelledby="academic-publications-heading">
+    <section ref={sectionRef} className={styles.section} aria-labelledby="academic-publications-heading">
       <img
         src="/main/bg_academic.png"
         alt=""
@@ -56,7 +128,7 @@ export function AcademicPublicationsSection({ messages }: AcademicPublicationsSe
       />
       <div className={styles.inner}>
         <div className={styles.intro}>
-          <div className={styles.copy}>
+          <div ref={copyRef} className={styles.copy}>
             <p className={styles.eyebrow}>
               <img
                 src="/main/img_main_academic_logo.png"
@@ -74,7 +146,7 @@ export function AcademicPublicationsSection({ messages }: AcademicPublicationsSe
             </h2>
             <p className={styles.description}>{messages.description}</p>
           </div>
-          <div className={styles.ctaWrap}>
+          <div ref={ctaWrapRef} className={styles.ctaWrap}>
             <button type="button" className={styles.cta}>
               <span className={styles.ctaDot} aria-hidden />
               <span className={styles.ctaLabel}>{messages.ctaLabel}</span>
@@ -82,7 +154,7 @@ export function AcademicPublicationsSection({ messages }: AcademicPublicationsSe
           </div>
         </div>
 
-        <ul className={styles.cardGrid}>
+        <ul ref={cardGridRef} className={styles.cardGrid}>
           {ACADEMIC_CARD_IMAGES.map((src, index) => (
             <li key={src} className={styles.cardItem}>
               <a

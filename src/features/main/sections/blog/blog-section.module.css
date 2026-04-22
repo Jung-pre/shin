@@ -328,22 +328,6 @@
   pointer-events: none;
 }
 
-.postPager {
-  margin-top: 1rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.postPagerItem {
-  color: #7f7f7f;
-  text-decoration: none;
-  font-family: var(--font-pretendard-stack);
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 120%;
-}
-
 @media (max-width: 1200px) {
   .inner {
     width: calc(100% - 4rem);

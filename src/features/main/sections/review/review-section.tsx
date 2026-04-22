@@ -1,14 +1,19 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useGSAP } from "@gsap/react";
 import type { ReviewSectionMessages } from "@/shared/i18n/messages";
 import styles from "./review-section.module.css";
 
 export interface ReviewSectionProps {
   messages: ReviewSectionMessages;
 }
+
+gsap.registerPlugin(ScrollTrigger, useGSAP);
 
 function ReviewLockIcon() {
   return (
@@ -22,6 +27,11 @@ function ReviewLockIcon() {
 }
 
 export function ReviewSection({ messages }: ReviewSectionProps) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const headlineBlockRef = useRef<HTMLDivElement>(null);
+  const slideBlockRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const cardGridRef = useRef<HTMLUListElement>(null);
   const reduceMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState(0);
   const filteredCards = messages.cards;
@@ -56,11 +66,91 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
   const titlePrefix = accentIndex >= 0 ? messages.title.slice(0, accentIndex) : messages.title;
   const titleAccent = accentIndex >= 0 ? messages.title.slice(accentIndex, accentIndex + accentText.length) : "";
 
+  useGSAP(
+    () => {
+      const section = sectionRef.current;
+      if (!section) return;
+
+      if (reduceMotion) {
+        gsap.set(
+          [
+            headlineBlockRef.current,
+            slideBlockRef.current,
+            tabsRef.current,
+            ...Array.from(cardGridRef.current?.querySelectorAll(`.${styles.cardLink}`) ?? []),
+          ].filter(Boolean),
+          { autoAlpha: 1, clearProps: "all" },
+        );
+        return;
+      }
+
+      const cardLinks = Array.from(cardGridRef.current?.querySelectorAll(`.${styles.cardLink}`) ?? []);
+
+      gsap.set([headlineBlockRef.current, slideBlockRef.current, tabsRef.current], {
+        autoAlpha: 0,
+        y: 28,
+      });
+
+      gsap.set(cardLinks, {
+        autoAlpha: 0,
+        y: 18,
+      });
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: "top 74%",
+          once: true,
+        },
+      });
+
+      tl.to(headlineBlockRef.current, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.9,
+        ease: "power3.out",
+      })
+        .to(
+          slideBlockRef.current,
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.88,
+            ease: "power3.out",
+          },
+          "-=0.52",
+        )
+        .to(
+          tabsRef.current,
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.72,
+            ease: "power2.out",
+          },
+          "-=0.42",
+        )
+        .to(
+          cardLinks,
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.62,
+            ease: "power2.out",
+            stagger: 0.11,
+            clearProps: "opacity,visibility,transform",
+          },
+          "-=0.24",
+        );
+    },
+    { scope: sectionRef, dependencies: [reduceMotion] },
+  );
+
   return (
-    <section className={styles.section} aria-labelledby="review-section-heading">
+    <section ref={sectionRef} className={styles.section} aria-labelledby="review-section-heading">
       <div className={styles.inner}>
         <div className={styles.leftColumn}>
-          <div className={styles.headlineBlock}>
+          <div ref={headlineBlockRef} className={styles.headlineBlock}>
             <p className={styles.eyebrow} lang="en">
               <img
                 src="/main/img_main_review_logo.png"
@@ -84,55 +174,57 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
             </button>
           </div>
 
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.a
-              key={`${slides[activeSlide]?.src}-${activeSlide}`}
-              href={slides[activeSlide]?.href ?? "#"}
-              className={styles.featuredImageLink}
-              initial={
-                reduceMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, x: slideDirection > 0 ? 16 : -16, filter: "blur(2px)" }
-              }
-              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0, filter: "blur(0px)" }}
-              exit={
-                reduceMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, x: slideDirection > 0 ? -14 : 14, filter: "blur(2px)" }
-              }
-              transition={reduceMotion ? { duration: 0.2 } : { duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <img
-                src={slides[activeSlide]?.src ?? messages.featuredImageSrc}
-                alt={slides[activeSlide]?.alt ?? messages.featuredAlt}
-                className={styles.featuredImage}
-                loading="lazy"
-                decoding="async"
-              />
-            </motion.a>
-          </AnimatePresence>
-          <div className={styles.sliderControls}>
-            <button
-              type="button"
-              className={styles.sliderButton}
-              aria-label="이전 후기"
-              onClick={() => handleSlide(-1)}
-            >
-              <img src="/main/btn_left.png" alt="" aria-hidden="true" loading="lazy" decoding="async" />
-            </button>
-            <button
-              type="button"
-              className={styles.sliderButton}
-              aria-label="다음 후기"
-              onClick={() => handleSlide(1)}
-            >
-              <img src="/main/btn_right.png" alt="" aria-hidden="true" loading="lazy" decoding="async" />
-            </button>
+          <div ref={slideBlockRef}>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.a
+                key={`${slides[activeSlide]?.src}-${activeSlide}`}
+                href={slides[activeSlide]?.href ?? "#"}
+                className={styles.featuredImageLink}
+                initial={
+                  reduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, x: slideDirection > 0 ? 16 : -16 }
+                }
+                animate={reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
+                exit={
+                  reduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, x: slideDirection > 0 ? -14 : 14 }
+                }
+                transition={reduceMotion ? { duration: 0.2 } : { duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <img
+                  src={slides[activeSlide]?.src ?? messages.featuredImageSrc}
+                  alt={slides[activeSlide]?.alt ?? messages.featuredAlt}
+                  className={styles.featuredImage}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </motion.a>
+            </AnimatePresence>
+            <div className={styles.sliderControls}>
+              <button
+                type="button"
+                className={styles.sliderButton}
+                aria-label="이전 후기"
+                onClick={() => handleSlide(-1)}
+              >
+                <img src="/main/btn_left.png" alt="" aria-hidden="true" loading="lazy" decoding="async" />
+              </button>
+              <button
+                type="button"
+                className={styles.sliderButton}
+                aria-label="다음 후기"
+                onClick={() => handleSlide(1)}
+              >
+                <img src="/main/btn_right.png" alt="" aria-hidden="true" loading="lazy" decoding="async" />
+              </button>
+            </div>
           </div>
         </div>
 
         <div className={styles.rightColumn}>
-          <div className={styles.tabs}>
+          <div ref={tabsRef} className={styles.tabs}>
             {messages.tabs.map((tab, index) => (
               <span key={tab} className={styles.tabGroup}>
                 {index > 0 ? <span className={styles.tabDivider} aria-hidden /> : null}
@@ -147,7 +239,7 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
             ))}
           </div>
 
-          <ul className={styles.cardGrid}>
+          <ul ref={cardGridRef} className={styles.cardGrid}>
             {filteredCards.map((card, index) => (
               <li key={`${card.imageSrc}-${index}`} className={styles.cardItem}>
                 <a href={card.href ?? "#"} className={styles.cardLink}>

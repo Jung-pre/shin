@@ -160,6 +160,10 @@
   z-index: 0;
 }
 
+.machineBackdropTitle800 {
+  left: -5.2rem;
+}
+
 .machineBackdropTitle500 {
   top: -3.25rem;
   left: -9.8rem;
@@ -254,7 +258,6 @@
   box-shadow:
     -3px -3px 4px 0 rgba(255, 255, 255, 0.2) inset,
     2px 2px 6px 0 rgba(255, 255, 255, 0.25) inset;
-  backdrop-filter: blur(5px);
   cursor: pointer;
 }
 
@@ -275,7 +278,9 @@
   width: 42.6875rem;
   height: 51rem;
   z-index: 2;
-  pointer-events: none;
+  /* pointer-events: none 제거 — 안에 3D 오버레이가 드래그 이벤트를 받아야 하므로.
+   * 부모 pointer-events:none + 자식 auto 조합이 일부 브라우저/상속 체인에서 누락되는 사례가 있어
+   * 원천적으로 auto 로 두고, 이미지 자체는 클릭 핸들러가 없어 무해하다. */
 }
 
 .machineImage {
@@ -284,6 +289,55 @@
   height: 100%;
   aspect-ratio: 77 / 92;
   object-fit: contain;
+  /* GLB 로드 완료 시 .machineImageHidden 로 페이드아웃. 모델과 2D 이미지가 동시에 보이는
+   * 어중간한 프레임을 없애서 "모델만 떠 있는" 결과로 자연스럽게 넘어간다. */
+  transition: opacity 320ms ease;
+}
+
+.machineImageHidden {
+  opacity: 0;
+}
+
+/*
+ * VISUMAX 이미지 위에 얹히는 3D 모델(.glb) 오버레이.
+ * 이미지(.machineImage) 와 동일 영역을 덮고, Canvas 배경은 투명이라 이미지 위로 모델만 떠 보임.
+ *
+ * pointer-events: auto — PresentationControls 드래그로 모델 소폭 회전 허용.
+ *   부모 .imageWrap 이 pointer-events:none 이지만 여기서 auto 로 복구(CSS 표준 허용).
+ * touch-action: none — 이 박스 위의 모든 제스처(가로/세로) 를 JS(PresentationControls) 가 먼저 캐치.
+ *   페이지 세로 스크롤은 이 박스 바깥(양옆/위아래) 에서 그대로 가능.
+ * grab / grabbing 커서로 드래그 가능 힌트 (클릭 가능성 가시화).
+ */
+.modelOverlay {
+  position: absolute;
+  /* 중앙 기준으로 키울 수 있게 inset 대신 width/height + 센터링. --overlay-scale 이 1 이면
+   * 기존처럼 imageWrap 을 꽉 채우고, >1 이면 이미지 영역 밖으로 확장되어 모델이 커 보임. */
+  width: calc(100% * var(--overlay-scale, 1));
+  height: calc(100% * var(--overlay-scale, 1));
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+
+.modelOverlay:active {
+  cursor: grabbing;
+}
+
+/* Canvas 래퍼(div) 와 실제 canvas 모두에 auto 명시 — 부모 pointer-events:none 상속 차단용 안전망. */
+.modelOverlay > div,
+.modelOverlay canvas {
+  pointer-events: auto !important;
+  touch-action: none !important;
+}
+
+.modelOverlay canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .imageWrap500 {

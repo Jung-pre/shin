@@ -1,4 +1,10 @@
+"use client";
+
 /* eslint-disable @next/next/no-img-element */
+import { useRef } from "react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useGSAP } from "@gsap/react";
 import type { BlogSectionMessages } from "@/shared/i18n/messages";
 import styles from "./blog-section.module.css";
 
@@ -6,12 +12,78 @@ export interface BlogSectionProps {
   messages: BlogSectionMessages;
 }
 
+gsap.registerPlugin(ScrollTrigger, useGSAP);
+
 export function BlogSection({ messages }: BlogSectionProps) {
+  const sectionRef = useRef<HTMLElement>(null);
+  const textBlockRef = useRef<HTMLDivElement>(null);
+  const heroCardRef = useRef<HTMLAnchorElement>(null);
+  const postListRef = useRef<HTMLUListElement>(null);
+
+  useGSAP(
+    () => {
+      const section = sectionRef.current;
+      if (!section) return;
+
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const postItems = Array.from(postListRef.current?.querySelectorAll(`.${styles.postItem}`) ?? []);
+      const revealTargets = [textBlockRef.current, heroCardRef.current].filter(Boolean);
+
+      if (reduceMotion) {
+        gsap.set([...revealTargets, ...postItems], { autoAlpha: 1, clearProps: "all" });
+        return;
+      }
+
+      gsap.set(revealTargets, {
+        autoAlpha: 0,
+        y: 34,
+      });
+      gsap.set(postItems, {
+        autoAlpha: 0,
+        y: 24,
+      });
+
+      const tl = gsap.timeline({
+        scrollTrigger: {
+          trigger: section,
+          start: "top 76%",
+          once: true,
+        },
+      });
+
+      tl.to(textBlockRef.current, {
+        autoAlpha: 1,
+        y: 0,
+        duration: 0.9,
+        ease: "power3.out",
+      })
+        .to(
+          heroCardRef.current,
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.95,
+            ease: "power3.out",
+          },
+          "-=0.52",
+        )
+        .to(postItems, {
+          autoAlpha: 1,
+          y: 0,
+          duration: 0.62,
+          ease: "power2.out",
+          stagger: 0.12,
+          clearProps: "opacity,visibility,transform",
+        });
+    },
+    { scope: sectionRef },
+  );
+
   return (
-    <section className={styles.section} aria-labelledby="blog-section-heading">
+    <section ref={sectionRef} className={styles.section} aria-labelledby="blog-section-heading">
       <div className={styles.inner}>
         <div className={styles.topGroup}>
-          <div className={styles.leftColumn}>
+          <div ref={textBlockRef} className={styles.leftColumn}>
             <p className={styles.eyebrow} lang="en">
             <img
               src="/main/img_main_blog_logo.png"
@@ -33,7 +105,7 @@ export function BlogSection({ messages }: BlogSectionProps) {
             </a>
           </div>
 
-          <a href={messages.heroHref ?? "#"} className={styles.heroCard}>
+          <a ref={heroCardRef} href={messages.heroHref ?? "#"} className={styles.heroCard}>
             <img src={messages.heroImageSrc} alt={messages.heroTitle} className={styles.heroImage} loading="lazy" decoding="async" />
             <div className={styles.heroMeta}>
               <p className={styles.heroDate}>{messages.heroDate}</p>
@@ -72,7 +144,7 @@ export function BlogSection({ messages }: BlogSectionProps) {
         </div>
 
         <div className={styles.bottomGroup}>
-          <ul className={styles.postList}>
+          <ul ref={postListRef} className={styles.postList}>
             {messages.posts.map((post) => (
               <li key={`${post.indexLabel}-${post.title}`} className={styles.postItem}>
                 <div className={styles.postRow}>
@@ -98,14 +170,6 @@ export function BlogSection({ messages }: BlogSectionProps) {
               </li>
             ))}
           </ul>
-
-          <div className={styles.postPager}>
-            {messages.posts.map((post) => (
-              <a key={`pager-${post.indexLabel}`} href={post.href ?? "#"} className={styles.postPagerItem}>
-                {post.indexLabel}
-              </a>
-            ))}
-          </div>
         </div>
       </div>
     </section>

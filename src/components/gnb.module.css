@@ -7,6 +7,13 @@
   z-index: 20;
   background: transparent;
   padding-inline: 8.12rem;
+  transition: background-color 240ms ease;
+}
+
+/* 스크롤 시 가독성 확보용 어두운 레이어.
+ * backdrop-filter(blur) 은 상시 리페인트 트리거라 제거 → 알파만 살짝 올려 가독성 확보. */
+.headerScrolled {
+  background-color: rgba(0, 0, 0, 0.45);
 }
 
 .nav {

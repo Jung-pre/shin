@@ -121,6 +121,71 @@ export interface BlogSectionMessages {
   posts: BlogSectionPost[];
 }
 
+export interface NewsSectionTab {
+  label: string;
+}
+
+export interface NewsSectionCard {
+  category: string;
+  title: string;
+  date: string;
+  imageSrc: string;
+  href?: string;
+}
+
+export interface NewsSectionMessages {
+  eyebrowEn: string;
+  titlePrefix: string;
+  titleAccent: string;
+  titleSuffix: string;
+  tabAriaLabel: string;
+  tabs: NewsSectionTab[];
+  cards: NewsSectionCard[];
+}
+
+export interface YoutubeSectionThumbnail {
+  imageSrc: string;
+  alt: string;
+  href?: string;
+}
+
+export interface YoutubeSectionMessages {
+  titleAccent: string;
+  titleSuffix: string;
+  ctaLabel: string;
+  ctaHref?: string;
+  heroImageSrc: string;
+  heroImageAlt: string;
+  heroHref?: string;
+  thumbnails: YoutubeSectionThumbnail[];
+}
+
+export interface FooterSectionMessages {
+  ariaLabel: string;
+  policyLinks: string[];
+  title: string;
+  hoursTitle: string;
+  hours: Array<{
+    label: string;
+    value: string;
+    mutedLabel?: string;
+  }>;
+  hoursNote?: string;
+  contactTitle: string;
+  contactSubTitle?: string;
+  contactValue: string;
+  brandName: string;
+  companyInfoLines: Array<{
+    label: string;
+    value: string;
+  }>;
+  addressLine: string;
+  parkingTowerLine: string;
+  copyright: string;
+  mapAlt: string;
+  mapImageSrc: string;
+}
+
 export interface AcademicPublicationsSectionMessages {
   eyebrowEn: string;
   title: string;
@@ -143,6 +208,9 @@ export interface Dictionary {
   reviewSection: ReviewSectionMessages;
   systemSection: SystemSectionMessages;
   blogSection: BlogSectionMessages;
+  newsSection: NewsSectionMessages;
+  youtubeSection: YoutubeSectionMessages;
+  footerSection: FooterSectionMessages;
   academicPublicationsSection: AcademicPublicationsSectionMessages;
 }
 
@@ -321,6 +389,88 @@ export const dictionaries: Record<Locale, Dictionary> = {
           href: "#",
         },
       ],
+    },
+    newsSection: {
+      eyebrowEn: "Latest News",
+      titlePrefix: "신세계안과의 ",
+      titleAccent: "새로운 소식",
+      titleSuffix: "을 만나보세요",
+      tabAriaLabel: "뉴스 카테고리",
+      tabs: [{ label: "전체" }, { label: "공지사항" }, { label: "이벤트" }, { label: "언론보도" }],
+      cards: [
+        {
+          category: "이벤트",
+          title: "수험생을 위한 시력 합격 이벤트",
+          date: "2025-10-27",
+          imageSrc: "/main/img_main_news01.png",
+          href: "#",
+        },
+        {
+          category: "언론보도",
+          title: "광주신세계안과, 시대교정술 이해 한...",
+          date: "2026-03-20",
+          imageSrc: "/main/img_main_news02.png",
+          href: "#",
+        },
+        {
+          category: "공지사항",
+          title: "3.1절 대체공휴일 휴진 안내",
+          date: "2026-02-19",
+          imageSrc: "/main/img_main_news03.png",
+          href: "#",
+        },
+        {
+          category: "이벤트",
+          title: "겨울방학 스마일수술 특별 Event",
+          date: "2025-12-01",
+          imageSrc: "/main/img_main_news04.png",
+          href: "#",
+        },
+      ],
+    },
+    youtubeSection: {
+      titleAccent: "신세계안과 TV,",
+      titleSuffix: "유튜브에서 신세계를 만나보세요",
+      ctaLabel: "신세계안과 TV 바로가기",
+      ctaHref: "#",
+      heroImageSrc: "/main/img_main_youtube01.png",
+      heroImageAlt: "신세계안과 유튜브 대표 영상",
+      heroHref: "#",
+      thumbnails: [
+        { imageSrc: "/main/img_main_youtube02.png", alt: "유튜브 영상 썸네일 1", href: "#" },
+        { imageSrc: "/main/img_main_youtube03.png", alt: "유튜브 영상 썸네일 2", href: "#" },
+        { imageSrc: "/main/img_main_youtube04.png", alt: "유튜브 영상 썸네일 3", href: "#" },
+        { imageSrc: "/main/img_main_youtube05.png", alt: "유튜브 영상 썸네일 4", href: "#" },
+        { imageSrc: "/main/img_main_youtube06.png", alt: "유튜브 영상 썸네일 5", href: "#" },
+        { imageSrc: "/main/img_main_youtube07.png", alt: "유튜브 영상 썸네일 6", href: "#" },
+      ],
+    },
+    footerSection: {
+      ariaLabel: "사이트 푸터",
+      policyLinks: ["병원소개", "이용약관", "개인정보처리방침", "비급여진료비안내", "환자의 권리와 의무"],
+      title: "보이는 그 이상의 감동,\n신세계안과가 함께합니다",
+      hoursTitle: "진료 시간",
+      hours: [
+        { label: "월-목", value: "09:00 ~ 18:00" },
+        { label: "금요일", mutedLabel: "(야간진료)", value: "09:00 ~ 20:00" },
+        { label: "토요일", mutedLabel: "(점심시간 없음)", value: "09:00 ~ 15:00" },
+        { label: "점심시간", value: "12:30 ~ 14:00" },
+      ],
+      hoursNote: "* 일요일 및 공휴일 : 휴진",
+      contactTitle: "고객센터",
+      contactSubTitle: "(예약/상담)",
+      contactValue: "1566-9988",
+      brandName: "신세계안과",
+      companyInfoLines: [
+        { label: "상호", value: "신세계안과의원" },
+        { label: "대표자", value: "김재봉" },
+        { label: "사업자 등록번호", value: "410-31-55481" },
+      ],
+      addressLine: "광주광역시 서구 죽봉대로 92 (광천동 38번지) 신세계백화점 대각선 눈모양빌딩",
+      parkingTowerLine: "광주광역시 서구 죽봉대로 94번길 7-1 (광천동 35번지)",
+      copyright: "Copyright (C) Shinsegae Eye Clinic. All Rights Reserved.",
+      mapAlt: "신세계안과 오시는길 지도",
+      mapImageSrc: "/main/img_main_footer_map.png",
     },
     academicPublicationsSection: {
       eyebrowEn: "Academic Activities and Publications",
@@ -505,6 +655,89 @@ export const dictionaries: Record<Locale, Dictionary> = {
           href: "#",
         },
       ],
+    },
+    newsSection: {
+      eyebrowEn: "Latest News",
+      titlePrefix: "Discover ",
+      titleAccent: "new updates",
+      titleSuffix: " from Shinsegae Eye Clinic",
+      tabAriaLabel: "News categories",
+      tabs: [{ label: "All" }, { label: "Notice" }, { label: "Events" }, { label: "Press" }],
+      cards: [
+        {
+          category: "Event",
+          title: "Vision success event for exam students",
+          date: "2025-10-27",
+          imageSrc: "/main/img_main_news01.png",
+          href: "#",
+        },
+        {
+          category: "Press",
+          title: "Shinsegae Eye Clinic, media feature on correction...",
+          date: "2026-03-20",
+          imageSrc: "/main/img_main_news02.png",
+          href: "#",
+        },
+        {
+          category: "Notice",
+          title: "Holiday closure notice for March 1 substitute day",
+          date: "2026-02-19",
+          imageSrc: "/main/img_main_news03.png",
+          href: "#",
+        },
+        {
+          category: "Event",
+          title: "Winter vacation Smile surgery special event",
+          date: "2025-12-01",
+          imageSrc: "/main/img_main_news04.png",
+          href: "#",
+        },
+      ],
+    },
+    youtubeSection: {
+      titleAccent: "Shinsegae Eye TV,",
+      titleSuffix: "discover a new world on YouTube",
+      ctaLabel: "Visit Shinsegae Eye TV",
+      ctaHref: "#",
+      heroImageSrc: "/main/img_main_youtube01.png",
+      heroImageAlt: "Shinsegae Eye YouTube featured video",
+      heroHref: "#",
+      thumbnails: [
+        { imageSrc: "/main/img_main_youtube02.png", alt: "YouTube thumbnail 1", href: "#" },
+        { imageSrc: "/main/img_main_youtube03.png", alt: "YouTube thumbnail 2", href: "#" },
+        { imageSrc: "/main/img_main_youtube04.png", alt: "YouTube thumbnail 3", href: "#" },
+        { imageSrc: "/main/img_main_youtube05.png", alt: "YouTube thumbnail 4", href: "#" },
+        { imageSrc: "/main/img_main_youtube06.png", alt: "YouTube thumbnail 5", href: "#" },
+        { imageSrc: "/main/img_main_youtube07.png", alt: "YouTube thumbnail 6", href: "#" },
+      ],
+    },
+    footerSection: {
+      ariaLabel: "Site footer",
+      policyLinks: ["Company", "Terms", "Privacy", "Non-covered Fees", "Patient Rights"],
+      title: "Beyond clear vision,\nShinsegae Eye Clinic is with you",
+      hoursTitle: "Clinic hours",
+      hours: [
+        { label: "Mon-Thu", value: "09:00 ~ 18:00" },
+        { label: "Fri", mutedLabel: "(Night clinic)", value: "09:00 ~ 20:00" },
+        { label: "Sat", mutedLabel: "(No lunch break)", value: "09:00 ~ 15:00" },
+        { label: "Break", value: "12:30 ~ 14:00" },
+      ],
+      hoursNote: "* Closed on Sundays and public holidays",
+      contactTitle: "Customer Center",
+      contactSubTitle: "(Booking)",
+      contactValue: "1566-9988",
+      brandName: "Shinsegae Eye Clinic",
+      companyInfoLines: [
+        { label: "Business name", value: "Shinsegae Eye Clinic" },
+        { label: "Representative", value: "Kim Jaebong" },
+        { label: "Business number", value: "410-31-55481" },
+      ],
+      addressLine:
+        "Address 92, Jukbong-daero, Seo-gu, Gwangju (Gwangcheon-dong 38)\nParking 963beon-gil 7-1, Nongseong-dong, Seo-gu, Gwangju",
+      parkingTowerLine: "94beon-gil 7-1, Jukbong-daero, Seo-gu, Gwangju (Gwangcheon-dong 35)",
+      copyright: "Copyright (C) Shinsegae Eye Clinic. All Rights Reserved.",
+      mapAlt: "Map to Shinsegae Eye Clinic",
+      mapImageSrc: "/main/img_main_footer_map.png",
     },
     academicPublicationsSection: {
       eyebrowEn: "Academic Activities and Publications",

@@ -1,0 +1,194 @@
+/*
+ * VISUMAX 3D 모델(.glb) 전용 설정 패널.
+ * SVG 글래스 패널(좌측 하단) 과 충돌 회피 위해 우측 하단에 플로팅.
+ */
+.panel {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  /* GNB(20) · 3D 글래스 옵션(30) · SVG 글래스 옵션(31) 보다 확실히 위 — 어떤 레이어에도 가려지지 않도록. */
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.panelToggle {
+  border: 0;
+  border-radius: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(17, 17, 17, 0.76);
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.panelPopup {
+  width: 20rem;
+  max-height: 75vh;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.75rem;
+  background: rgba(17, 17, 17, 0.96);
+  color: #fff;
+}
+
+.panelHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.panelTitle {
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.panelTabs {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.panelTab {
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.45rem;
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.panelTab:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.panelTabActive {
+  background: rgba(186, 163, 255, 0.2);
+  border-color: rgba(186, 163, 255, 0.6);
+}
+
+.panelSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.panelSectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panelSectionTitle {
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #e8dcff;
+}
+
+.panelReset {
+  border: 0;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.panelReset:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.panelFieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.panelFieldGroupLabel {
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.panelField {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.panelField span {
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.72rem;
+}
+
+.panelField input[type="range"] {
+  appearance: none;
+  width: 100%;
+  height: 0.3rem;
+  border-radius: 999rem;
+  background: rgba(213, 199, 230, 0.45);
+  outline: none;
+}
+
+.panelField input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  border: 0;
+  background: #f2e8ff;
+  cursor: pointer;
+}
+
+.panelField input[type="range"]::-moz-range-track {
+  height: 0.3rem;
+  border-radius: 999rem;
+  background: rgba(213, 199, 230, 0.45);
+}
+
+.panelField input[type="range"]::-moz-range-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  border: 0;
+  background: #f2e8ff;
+  cursor: pointer;
+}
+
+/* Env Preset 드롭다운 — 다른 필드와 톤 맞추기. native select 유지해 모바일 친화. */
+.panelSelect {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.panelSelect option {
+  color: #111;
+}

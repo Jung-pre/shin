@@ -51,8 +51,6 @@
   width: var(--slide-width);
   height: var(--slide-height);
   overflow: hidden;
-  border-radius: 1.12rem;
-  box-shadow: 0 12px 42px rgba(26, 6, 44, 0.24);
   will-change: transform, opacity, filter;
   backface-visibility: hidden;
   transform-origin: center center;
@@ -100,8 +98,7 @@
   color: #fff;
   font-family: var(--font-pretendard-stack);
   font-size: 0.78rem;
-  background: rgba(34, 19, 56, 0.62);
-  backdrop-filter: blur(8px);
+  background: rgba(34, 19, 56, 0.88);
   cursor: pointer;
 }
 
@@ -109,9 +106,8 @@
   min-width: 16.5rem;
   border-radius: 0.75rem;
   padding: 0.72rem 0.82rem;
-  background: rgba(22, 10, 35, 0.72);
+  background: rgba(22, 10, 35, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(12px);
   display: flex;
   flex-direction: column;
   gap: 0.52rem;

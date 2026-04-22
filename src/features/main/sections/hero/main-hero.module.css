@@ -39,10 +39,20 @@
   font-style: normal;
   font-weight: 400;
   line-height: normal;
+  /* 글자별 등장 애니메이션을 위해 gradient text-clip 은 자식 span(.titleChar) 로 이동.
+   * 부모는 폰트 메트릭만 유지 — transform 은 걸지 않는다(글래스 텍스처 bbox 기준). */
+  color: transparent;
+}
+
+/* 글자 단위 등장(stagger) 용. inline-block 이어야 transform(translateY) 적용 가능.
+ * 세로 gradient 라 글자별로 칠해도 전체 시각 동일. */
+.titleChar {
+  display: inline-block;
   background: linear-gradient(180deg, #fff 54.47%, #f5e0ff 81.32%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  will-change: opacity, transform;
 }
 
 .quickDock {
@@ -71,25 +81,22 @@
   --quick-border-soft: #e1e1e1;
 
   display: flex;
-  width: 100%;
-  max-width: 1660px;
-  padding: 16px 26px;
+  width: 103.75rem;
+  max-width: 100%;
+  padding: 1.25rem 2.5rem;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 0.5rem;
   flex-wrap: nowrap;
-  border-radius: 1000px;
+  border-radius: 62.5rem;
   border: 1px solid rgba(255, 255, 255, 0.3);
   background: #fff;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  box-shadow: 0 12px 40px rgba(24, 12, 64, 0.08);
 }
 
 .cluster {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 1rem;
   flex: 1 1 auto;
   min-width: 0;
   flex-wrap: nowrap;
@@ -97,11 +104,11 @@
 
 .headline {
   margin: 0;
-  font-family: Pretendard, system-ui, -apple-system, sans-serif;
-  font-size: clamp(18px, 1.05vw, 22px);
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.5rem;
+  font-style: normal;
   font-weight: 700;
   line-height: 120%;
-  letter-spacing: -0.02em;
   white-space: nowrap;
 }
 
@@ -117,7 +124,7 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
+  gap: 0.38rem;
   flex: 1 1 320px;
   min-width: 0;
   justify-content: flex-start;
@@ -147,16 +154,52 @@
 }
 
 .fieldName {
-  width: 88px;
+  display: flex;
+  width: 6.25rem;
+  padding: 0.625rem 1.5rem;
+  justify-content: center;
+  align-items: center;
+  gap: 0.625rem;
   flex-shrink: 0;
+  color: #812990;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 120%;
 }
 
 .fieldName::placeholder {
-  color: #b3b3b3;
+  color: #9c9c9c;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 120%;
+}
+
+.fieldName:focus,
+.fieldName:focus-visible {
+  display: flex;
+  width: 6.25rem;
+  padding: 0.625rem 1.5rem;
+  justify-content: center;
+  align-items: center;
+  gap: 0.625rem;
+  border-radius: 0.5rem;
+  border: 1px solid #e1e1e1;
+  background: #fff;
+  box-shadow: 0 0 4px 0 rgba(129, 41, 144, 0.8);
+}
+
+.fieldName:focus::placeholder,
+.fieldName:focus-visible::placeholder {
+  color: #812990;
+  font-weight: 500;
 }
 
 .fieldContact {
-  width: 132px;
+  width: 9.375rem;
   text-align: left;
 }
 
@@ -166,7 +209,7 @@
 
 .selectWrap {
   position: relative;
-  width: 126px;
+  width: 9.375rem;
   flex-shrink: 0;
 }
 
@@ -210,24 +253,27 @@
   align-items: center;
   gap: 8px;
   flex-wrap: nowrap;
+  margin-left: 1rem;
 }
 
 .checkboxLabel {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
-  font-size: 0.6875rem;
-  line-height: 1.35;
-  color: #1a1a1a;
+  color: #404040;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.875rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 120%;
   cursor: pointer;
   max-width: none;
-  white-space: nowrap;
 }
 
 .checkbox {
   width: 18px;
   height: 18px;
-  margin-top: 1px;
+  margin-top: 0;
   flex-shrink: 0;
   accent-color: var(--quick-purple);
   cursor: pointer;
@@ -235,17 +281,19 @@
 
 .consentText {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.0625rem;
+  line-height: 120%;
 }
 
 .consentDetailLink {
   color: var(--quick-purple);
   text-decoration: underline;
   text-underline-offset: 2px;
-  font-size: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 120%;
 }
 
 .submit {
@@ -286,6 +334,7 @@
   height: 40px;
   background: rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
+  margin-inline: 0.25rem;
 }
 
 .links {
@@ -294,13 +343,14 @@
   gap: 0;
   flex-wrap: nowrap;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .linkItem {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 12px;
+  padding: 0 1.5rem;
   color: var(--quick-purple);
   font-size: 0.8125rem;
   font-weight: 600;

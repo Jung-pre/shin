@@ -79,19 +79,9 @@ export function TypographyScrollSection({ messages }: TypographyScrollSectionPro
             <motion.div
               key={slide.lineEn}
               className={styles.slide}
-              initial={
-                reduceMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: 14, filter: "blur(5px)" }
-              }
-              animate={
-                reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }
-              }
-              exit={
-                reduceMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: -12, filter: "blur(3px)" }
-              }
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 }}
+              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -12 }}
               transition={reduceMotion ? { duration: 0.22, ease: "easeOut" } : SLIDE_TRANSITION}
             >
               <p className={styles.lineEn} lang="en">

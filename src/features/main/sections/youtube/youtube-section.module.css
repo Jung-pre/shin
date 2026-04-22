@@ -1,0 +1,128 @@
+.section {
+  width: 100%;
+  background: #ececf2;
+}
+
+.inner {
+  padding: 7.5rem 8.12rem;
+}
+
+.content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+}
+
+.heroLink {
+  display: block;
+  width: 62.125rem;
+  height: 34.9375rem;
+  max-width: 100%;
+  border-radius: 1.5rem;
+  overflow: hidden;
+  text-decoration: none;
+}
+
+.heroImage {
+  display: block;
+  width: 62.125rem;
+  height: 34.9375rem;
+  max-width: 100%;
+  border-radius: 1.5rem;
+  object-fit: cover;
+}
+
+.rightColumn {
+  width: 36.8rem;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.title {
+  margin: 0;
+  color: #111;
+  font-family: var(--font-pretendard-stack);
+  font-size: 2.5rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 140%;
+  letter-spacing: -0.1rem;
+}
+
+.titleAccent {
+  color: #812990;
+}
+
+.cta {
+  margin-top: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 2rem;
+  border-radius: 62.4375rem;
+  background: #fff;
+  box-shadow: 0 2px 20px 0 rgba(46, 21, 51, 0.08);
+  color: #812990;
+  text-decoration: none;
+  font-family: var(--font-pretendard-stack);
+  font-size: 1.25rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 120%;
+  letter-spacing: -0.0375rem;
+}
+
+.ctaDot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 624.9375rem;
+  background: #812990;
+  flex-shrink: 0;
+}
+
+.thumbWrap {
+  margin-top: 3.5rem;
+  width: 100%;
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.thumbGrid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.thumbItem {
+  min-width: 0;
+}
+
+.thumbLink {
+  display: block;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.thumbImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+@media (max-width: 1200px) {
+  .inner {
+    padding: 5rem 2rem;
+  }
+
+  .content {
+    flex-direction: column;
+  }
+}

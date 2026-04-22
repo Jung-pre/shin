@@ -26,6 +26,8 @@ export default async function LocaleHomeRoute({ params }: LocaleHomeRouteProps) 
       reviewSection={dict.reviewSection}
       systemSection={dict.systemSection}
       blogSection={dict.blogSection}
+      newsSection={dict.newsSection}
+      youtubeSection={dict.youtubeSection}
       academicPublicationsSection={dict.academicPublicationsSection}
     />
   );

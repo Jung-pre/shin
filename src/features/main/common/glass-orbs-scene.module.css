@@ -5,10 +5,212 @@
   pointer-events: none;
 }
 
-/* 클릭·포커스는 뒤 DOM으로 통과; 좌표는 window + 캔버스 rect로만 추적 */
+/* 클릭·포커스는 뒤 DOM 으로 통과; 좌표는 window + 캔버스 rect 로만 추적 */
 .sceneWrap canvas {
   display: block;
   width: 100%;
   height: 100%;
   pointer-events: none;
+}
+
+/* ---------- 렌즈 옵션 조절 레이어 ---------- */
+
+/* GNB(fixed, min-height 92px, z-index 20) 아래로 내리고 z-index 도 위로 */
+.layerTool {
+  position: fixed;
+  top: 7rem;
+  right: 1.25rem;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  pointer-events: auto;
+}
+
+.layerToggle {
+  border: 0;
+  border-radius: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(17, 17, 17, 0.76);
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.layerPopup {
+  width: 19rem;
+  max-height: calc(100vh - 9rem);
+  overflow-y: auto;
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 0.75rem;
+  background: rgba(17, 17, 17, 0.94);
+  color: #fff;
+  box-shadow: none;
+}
+
+.layerPopupHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.layerPopupTitle {
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.layerResetBtn {
+  border: 0;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.layerResetBtn:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.layerField {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.layerField + .layerField {
+  margin-top: 0.6rem;
+}
+
+.layerFieldTitle {
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.75rem;
+  font-style: normal;
+}
+
+/* 섹션 구분(렌즈/환경/조명) */
+.layerSection {
+  margin-top: 0.9rem;
+  padding-top: 0.7rem;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.layerSection:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.layerSectionTitle {
+  display: block;
+  margin-bottom: 0.55rem;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #f2e8ff;
+}
+
+/* 토글(체크박스) 필드 */
+.layerToggleRow {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.layerToggleRow input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #c6a4ff;
+  flex-shrink: 0;
+}
+
+/* 셀렉트(HDRI preset 등) */
+.layerSelect {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 0.35rem;
+  font-family: var(--font-pretendard-stack);
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.layerSelect:focus {
+  border-color: rgba(242, 232, 255, 0.75);
+}
+
+.layerSelect option {
+  background: #161316;
+  color: #fff;
+}
+
+.layerColor {
+  width: 2.25rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 0.35rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.layerColor::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.layerColor::-webkit-color-swatch {
+  border: none;
+  border-radius: 0.25rem;
+}
+
+.layerField input[type="range"] {
+  appearance: none;
+  width: 100%;
+  height: 0.3rem;
+  border-radius: 999rem;
+  background: rgba(213, 199, 230, 0.45);
+  outline: none;
+}
+
+.layerField input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  border: 0;
+  background: #f2e8ff;
+  cursor: pointer;
+}
+
+.layerField input[type="range"]::-moz-range-track {
+  height: 0.3rem;
+  border-radius: 999rem;
+  background: rgba(213, 199, 230, 0.45);
+}
+
+.layerField input[type="range"]::-moz-range-thumb {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  border: 0;
+  background: #f2e8ff;
+  cursor: pointer;
 }

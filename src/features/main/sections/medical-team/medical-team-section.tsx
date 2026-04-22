@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import type { MedicalTeamSectionMessages } from "@/shared/i18n/messages";
@@ -12,11 +12,21 @@ export interface MedicalTeamSectionProps {
 
 gsap.registerPlugin(ScrollTrigger);
 
+/**
+ * dev 튜닝용 "로고 레이어 조정" 패널 노출 스위치.
+ *   - false: logoOffsetX/Y state 는 유지(이미지 포지션 계산에 그대로 사용), UI 만 스킵.
+ *   - true: 우측 하단 토글 + 슬라이더 팝업 노출.
+ */
+const SHOW_LOGO_LAYER_PANEL = false;
+
 export function MedicalTeamSection({ messages }: MedicalTeamSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const curtainRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
   const imageFrameRef = useRef<HTMLDivElement>(null);
+  const [isLayerOpen, setIsLayerOpen] = useState(false);
+  const [logoOffsetX, setLogoOffsetX] = useState(-14);
+  const [logoOffsetY, setLogoOffsetY] = useState(16);
 
   useLayoutEffect(() => {
     const section = sectionRef.current;
@@ -62,7 +72,7 @@ export function MedicalTeamSection({ messages }: MedicalTeamSectionProps) {
 
       gsap.fromTo(
         imageFrame,
-        { autoAlpha: 0, y: "20vh" },
+        { autoAlpha: 0, y: "10vh" },
         {
           autoAlpha: 1,
           y: 0,
@@ -82,7 +92,17 @@ export function MedicalTeamSection({ messages }: MedicalTeamSectionProps) {
 
   return (
     <section ref={sectionRef} className={styles.section} aria-label="Medical team">
-      <div ref={curtainRef} className={styles.curtain} aria-hidden />
+      <div
+        ref={curtainRef}
+        className={styles.curtain}
+        aria-hidden
+        style={
+          {
+            "--logo-offset-x": `${logoOffsetX}px`,
+            "--logo-offset-y": `${logoOffsetY}px`,
+          } as CSSProperties
+        }
+      />
       <div className={styles.inner}>
         <div ref={copyRef} className={styles.copy}>
           <p className={styles.eyebrow}>{messages.eyebrow}</p>
@@ -106,6 +126,38 @@ export function MedicalTeamSection({ messages }: MedicalTeamSectionProps) {
           />
         </div>
       </div>
+
+      {SHOW_LOGO_LAYER_PANEL ? (
+        <div className={styles.layerTool}>
+          <button type="button" className={styles.layerToggle} onClick={() => setIsLayerOpen((prev) => !prev)}>
+            로고 레이어 조정
+          </button>
+          {isLayerOpen ? (
+            <div className={styles.layerPopup}>
+              <label className={styles.layerField}>
+                <span className={styles.layerFieldTitle}>로고 오프셋 X: {logoOffsetX}</span>
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  value={logoOffsetX}
+                  onChange={(event) => setLogoOffsetX(Number(event.target.value))}
+                />
+              </label>
+              <label className={styles.layerField}>
+                <span className={styles.layerFieldTitle}>로고 오프셋 Y: {logoOffsetY}</span>
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  value={logoOffsetY}
+                  onChange={(event) => setLogoOffsetY(Number(event.target.value))}
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

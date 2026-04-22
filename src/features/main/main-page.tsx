@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { GridBackground } from "@/features/main/common/grid-background";
-import { Gnb } from "@/components/gnb";
+import { SvgGlassOverlay } from "@/features/main/common/svg-glass-overlay";
 import { MainHero } from "@/features/main/sections/hero/main-hero";
 import type { Locale } from "@/shared/config/i18n";
 import type {
@@ -14,9 +14,11 @@ import type {
   HeroQuickBarMessages,
   MachineSectionMessages,
   MedicalTeamSectionMessages,
+  NewsSectionMessages,
   ReviewSectionMessages,
   SystemSectionMessages,
   TypographySectionMessages,
+  YoutubeSectionMessages,
 } from "@/shared/i18n/messages";
 import { TypographyScrollSection } from "@/features/main/sections/typography/typography-scroll-section";
 import { RotatingSlideSection } from "@/features/main/sections/rotating-slide/rotating-slide-section";
@@ -26,17 +28,18 @@ import { MachineSection } from "@/features/main/sections/machine/machine-section
 import { ReviewSection } from "@/features/main/sections/review/review-section";
 import { SystemSection } from "@/features/main/sections/system/system-section";
 import { BlogSection } from "@/features/main/sections/blog/blog-section";
+import { NewsSection } from "@/features/main/sections/news/news-section";
+import { YoutubeSection } from "@/features/main/sections/youtube/youtube-section";
+import { YoutubeTransitionSection } from "@/features/main/sections/youtube/youtube-transition-section";
 import styles from "./main-page.module.css";
 
 /** 잠시 끔 — 다시 켤 때 `true`로 바꾸고 아래 글래스 레이어 렌더 복구 */
-const GLASS_ORBS_ENABLED = false;
+const GLASS_ORBS_ENABLED = true;
 
 const GlassOrbsScene = dynamic(
   () => import("@/features/main/common/glass-orbs-scene").then((mod) => mod.GlassOrbsScene),
   { ssr: false },
 );
-
-gsap.registerPlugin(useGSAP);
 
 export interface MainPageProps {
   locale: Locale;
@@ -47,6 +50,8 @@ export interface MainPageProps {
   reviewSection: ReviewSectionMessages;
   systemSection: SystemSectionMessages;
   blogSection: BlogSectionMessages;
+  newsSection: NewsSectionMessages;
+  youtubeSection: YoutubeSectionMessages;
   academicPublicationsSection: AcademicPublicationsSectionMessages;
 }
 
@@ -61,14 +66,82 @@ export const MainPage = ({
   reviewSection,
   systemSection,
   blogSection,
+  newsSection,
+  youtubeSection,
   academicPublicationsSection,
 }: MainPageProps) => {
   const mainRef = useRef<HTMLElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
   const glassLayerRef = useRef<HTMLDivElement>(null);
-  const introPlayedRef = useRef(false);
+  /** 글래스 등장 모션 전용 래퍼 — opacity 는 스크롤 크로스페이드가 glassLayerRef 에서 점유하므로
+   * 분리해서 intro 에서 transform/filter/opacity 를 걸어 충돌을 피한다. */
+  const glassIntroRef = useRef<HTMLDivElement>(null);
+  /**
+   * 스크롤 뒷단 지속 글래스 — 3D Canvas 가 페이드아웃 되는 동시에 페이드인 돼서
+   * 히어로 이후 페이지 끝까지 같은 자리를 지키는 경량 SVG 버전.
+   */
+  const svgGlassLayerRef = useRef<HTMLDivElement>(null);
+  /**
+   * 히어로 타이틀 ref — 렌즈 내부 굴절 이미지를 이 요소 bbox 에 맞춰 정렬.
+   * MainHero 의 h1 에 부착되고, GlassOrbsScene 은 이 ref 를 기준으로 텍스처를 그린다.
+   */
+  const heroTitleRef = useRef<HTMLHeadingElement>(null);
   const [gridScrollHot, setGridScrollHot] = useState(false);
   const scrollHotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * 첫 진입 시 히어로 등장 모션:
+   *   1) "신세계안과" 타이틀을 글자 1개씩 stagger 로 페이드 인 + slight slide up
+   *   2) 마지막 글자가 자리잡은 뒤 글래스 렌즈가 블러에서 선명하게 등장
+   *   3) 퀵바가 아래에서 슬라이드 업
+   *
+   * 주의: 타이틀 h1 자체는 `heroTitleRef` 로 글래스 텍스처 정렬에 쓰이므로 transform 금지.
+   *       내부 .titleChar span(inline-block) 만 애니메이션 → h1 의 bbox 는 고정.
+   */
+  useGSAP(
+    () => {
+      const glassIntro = glassIntroRef.current;
+      if (!glassIntro) return;
+
+      // 주의: 여기서 `scale` 을 쓰면 Canvas 전체가 중앙으로 수축 → 오브 X 오프셋이
+      // 설정값보다 안쪽으로 붙어 보인다(원하는 레이아웃 깨짐). 위치는 건드리지 말고
+      // opacity 만으로 등장 — 블러는 GPU 레이어 프로모션 + 재래스터가 비싸 제거.
+      gsap.set(glassIntro, { autoAlpha: 0 });
+      gsap.set('[data-hero-char]', { autoAlpha: 0, y: 40 });
+      gsap.set('[data-hero-intro="quickbar"]', { autoAlpha: 0, y: 28 });
+
+      // 글자 5개(신/세/계/안/과) × stagger 0.11s × duration 0.55s → 마지막 글자 끝: 0.44 + 0.55 = 0.99s
+      const charStagger = 0.11;
+      const charDuration = 0.55;
+      const charCount = 5;
+      const lastCharEnd = charStagger * (charCount - 1) + charDuration; // ≈ 0.99s
+
+      const tl = gsap.timeline({ delay: 0.12, defaults: { ease: "power3.out" } });
+      tl.to(
+        '[data-hero-char]',
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: charDuration,
+          stagger: charStagger,
+          ease: "power3.out",
+        },
+        0,
+      )
+        // 글자 다 나타난 직후 글래스 등장 (위치는 처음부터 최종값 유지, opacity 만 페이드)
+        .to(
+          glassIntro,
+          { autoAlpha: 1, duration: 1.25 },
+          lastCharEnd,
+        )
+        // 퀵바는 글래스와 살짝 겹쳐 0.25s 뒤에 슬라이드 업
+        .to(
+          '[data-hero-intro="quickbar"]',
+          { autoAlpha: 1, y: 0, duration: 0.9 },
+          lastCharEnd + 0.25,
+        );
+    },
+    { scope: mainRef },
+  );
 
   useEffect(() => {
     const markHot = () => {
@@ -93,31 +166,26 @@ export const MainPage = ({
     };
   }, []);
 
-  useGSAP(
-    () => {
-      if (!GLASS_ORBS_ENABLED || introPlayedRef.current || !glassLayerRef.current) {
-        return;
-      }
-      introPlayedRef.current = true;
-      gsap.fromTo(glassLayerRef.current, { y: 36 }, { y: 0, duration: 1, ease: "power3.out" });
-    },
-    { scope: mainRef },
-  );
-
   return (
     <main ref={mainRef} className={styles.root}>
       <div className={styles.gridFixed} aria-hidden>
         <GridBackground scrollHot={gridScrollHot} />
       </div>
-      <div ref={backdropRef} className={styles.backdrop} />
       {GLASS_ORBS_ENABLED ? (
-        <div ref={glassLayerRef} className={styles.glassLayer}>
-          <GlassOrbsScene transmissionSourceRef={backdropRef} />
-        </div>
+        <>
+          <div ref={glassLayerRef} className={styles.glassLayer}>
+            {/* glassLayerRef 는 크로스페이드 opacity 점유 → 등장 모션은 이 내부 래퍼가 담당 */}
+            <div ref={glassIntroRef} className={styles.glassIntroWrap}>
+              <GlassOrbsScene targetRef={heroTitleRef} />
+            </div>
+          </div>
+          {/* 히어로 이후 페이지 끝까지 이어지는 경량 글래스 — 스크롤로 크로스페이드 인.
+              크로스페이드(3D ↔ SVG) 로직은 SvgGlassOverlay 내부에서 glassLayerRef 로 직접 제어. */}
+          <SvgGlassOverlay ref={svgGlassLayerRef} glassLayerRef={glassLayerRef} />
+        </>
       ) : null}
       <div className={styles.foreground}>
-        <Gnb locale={locale} />
-        <MainHero heroQuickBar={heroQuickBar} locale={locale} />
+        <MainHero heroQuickBar={heroQuickBar} locale={locale} titleRef={heroTitleRef} />
         <TypographyScrollSection messages={typographySection} />
         <RotatingSlideSection />
         <MedicalTeamSection messages={medicalTeamSection} />
@@ -126,6 +194,9 @@ export const MainPage = ({
         <ReviewSection messages={reviewSection} />
         <SystemSection messages={systemSection} />
         <BlogSection messages={blogSection} />
+        <NewsSection messages={newsSection} />
+        <YoutubeSection messages={youtubeSection} />
+        <YoutubeTransitionSection />
       </div>
     </main>
   );

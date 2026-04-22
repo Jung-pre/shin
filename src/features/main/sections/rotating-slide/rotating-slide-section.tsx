@@ -10,6 +10,14 @@ import styles from "./rotating-slide-section.module.css";
 
 gsap.registerPlugin(ScrollTrigger);
 
+/**
+ * dev 튜닝용 회전 슬라이드 파라미터 패널 노출 스위치.
+ *   - false: tune state 는 유지(슬라이드 곡률·간격 등 실시간 계산에 그대로 사용),
+ *     UI(▼튜닝 토글 + 슬라이더 리스트) 만 렌더 스킵.
+ *   - true: 우측 하단 플로팅 패널 노출.
+ */
+const SHOW_ROTATING_TUNE_PANEL = false;
+
 const ROTATION_SLIDES = [
   {
     imageSrc: "/main/img_main_slide01.png",
@@ -68,9 +76,9 @@ const ROTATING_TUNE_DEFAULT = {
   tiltX: 0,
   tiltY: 0,
   trackOffsetRem: 0,
-  radiusVw: 65,
-  spacingFactor: 0.45,
-  sideCurveBoost: 8.05,
+  radiusVw: 40,
+  spacingFactor: 0.53,
+  sideCurveBoost: 20,
   stairStrength: 3,
 };
 
@@ -188,9 +196,9 @@ export function RotatingSlideSection() {
                 const diagonalShiftY = diagonalDirection * diagonalStrength * 112 * tune.stairStrength;
                 const sideCurveAmount = Math.pow(Math.abs(diagonalRatio), 1.05);
                 const counterYaw = -angle / (1 + sideCurveAmount * tune.sideCurveBoost);
+                // 블러는 렌더마다 GPU 필터 재계산이라 스크롤 프레임 부하 큼 — opacity / zIndex 로 원근감만 유지.
                 const style = {
                   opacity: frontHalfVisible ? 0.16 + visible * 0.84 : 0,
-                  filter: `blur(${(1 - visible) * 1.65}px)`,
                   zIndex: frontHalfVisible ? Math.round(10 + visible * 90) : 0,
                   // 원통 위치는 유지하되 카드 면은 카메라 정면으로 역회전시켜 항상 '평면'처럼 보이게
                   transform: `translate(-50%, -50%) rotateY(${angle}deg) translateZ(var(--slide-radius)) rotateY(${counterYaw}deg) translate3d(${diagonalShiftX}px, ${diagonalShiftY}px, 0)`,
@@ -221,63 +229,53 @@ export function RotatingSlideSection() {
           </div>
         </div>
 
-        <div className={styles.controlWrap}>
-          <button
-            type="button"
-            className={styles.controlToggle}
-            onClick={() => setShowPanel((v) => !v)}
-          >
-            {showPanel ? "▲ 닫기" : "▼ 튜닝"}
-          </button>
-          {showPanel && (
-            <div className={styles.controlPanel}>
-              {(
-                [
-                  { key: "sideCurveBoost", label: "사이드 회전량", min: 0, max: 20, step: 0.05 },
-                  { key: "stairStrength",  label: "계단 강도",     min: 0, max: 5,  step: 0.05 },
-                  { key: "radiusVw",       label: "반경 (vw)",     min: 5, max: 60, step: 0.5  },
-                  { key: "spacingFactor",  label: "간격 배수",     min: 0.1, max: 1, step: 0.01 },
-                  { key: "trackOffsetRem", label: "수직 오프셋 (rem)", min: -20, max: 20, step: 0.25 },
-                  { key: "tiltX",          label: "틸트 X (deg)",  min: -30, max: 30, step: 0.5 },
-                  { key: "tiltY",          label: "틸트 Y (deg)",  min: -30, max: 30, step: 0.5 },
-                ] as const
-              ).map(({ key, label, min, max, step }) => (
-                <div key={key} className={styles.controlRow}>
-                  <span>{label}: {tune[key]}</span>
-                  <input
-                    type="range"
-                    min={min}
-                    max={max}
-                    step={step}
-                    value={tune[key]}
-                    onChange={(e) => set(key, parseFloat(e.target.value))}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {SHOW_ROTATING_TUNE_PANEL && (
+          <div className={styles.controlWrap}>
+            <button
+              type="button"
+              className={styles.controlToggle}
+              onClick={() => setShowPanel((v) => !v)}
+            >
+              {showPanel ? "▲ 닫기" : "▼ 튜닝"}
+            </button>
+            {showPanel && (
+              <div className={styles.controlPanel}>
+                {(
+                  [
+                    { key: "sideCurveBoost", label: "사이드 회전량", min: 0, max: 20, step: 0.05 },
+                    { key: "stairStrength",  label: "계단 강도",     min: 0, max: 5,  step: 0.05 },
+                    { key: "radiusVw",       label: "반경 (vw)",     min: 5, max: 60, step: 0.5  },
+                    { key: "spacingFactor",  label: "간격 배수",     min: 0.1, max: 1, step: 0.01 },
+                    { key: "trackOffsetRem", label: "수직 오프셋 (rem)", min: -20, max: 20, step: 0.25 },
+                    { key: "tiltX",          label: "틸트 X (deg)",  min: -30, max: 30, step: 0.5 },
+                    { key: "tiltY",          label: "틸트 Y (deg)",  min: -30, max: 30, step: 0.5 },
+                  ] as const
+                ).map(({ key, label, min, max, step }) => (
+                  <div key={key} className={styles.controlRow}>
+                    <span>{label}: {tune[key]}</span>
+                    <input
+                      type="range"
+                      min={min}
+                      max={max}
+                      step={step}
+                      value={tune[key]}
+                      onChange={(e) => set(key, parseFloat(e.target.value))}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className={styles.copy}>
           <AnimatePresence initial={false} mode="wait">
             <motion.div
               key={activeSlide.lineEn}
               className={styles.copyStack}
-              initial={
-                reduceMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: 10, filter: "blur(4px)" }
-              }
-              animate={
-                reduceMotion
-                  ? { opacity: 1 }
-                  : { opacity: 1, y: 0, filter: "blur(0px)" }
-              }
-              exit={
-                reduceMotion
-                  ? { opacity: 0 }
-                  : { opacity: 0, y: -8, filter: "blur(3px)" }
-              }
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
+              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
               transition={reduceMotion ? { duration: 0.2 } : TEXT_TRANSITION}
             >
               <p className={styles.lineEn} lang="en">

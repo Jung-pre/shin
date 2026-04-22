@@ -140,6 +140,10 @@
   height: 0.1875rem;
   background: #fff;
   opacity: 0.3;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+  transform-origin: center center;
 }
 
 .bottomNavItemActive {

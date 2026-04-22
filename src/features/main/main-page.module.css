@@ -19,30 +19,35 @@
   overflow: hidden;
 }
 
-/* 래스터 타이틀(글래스 전송용) — 첫 화면 구간만 */
-.backdrop {
-  position: absolute;
+/*
+ * 글래스 오브 WebGL — 뷰포트에 고정(position: fixed).
+ * 히어로 영역에서만 보여주고 벗어나면 JS(opacity) 로 페이드아웃.
+ * 이 레이어가 살아있는 구간(히어로) 에선 foreground(z:2) 의 히어로 DOM 타이틀
+ * 위로 떠 있어야 렌즈 속 굴절 이미지가 실제 타이틀을 덮는다 → z:3.
+ * 페이드 아웃된 이후로는 SVG 오버레이(z:1) 가 콘텐츠 뒤에 깔리며 바턴터치.
+ * Canvas 는 pointer-events: none 이므로 뒤 DOM 상호작용은 그대로 통과.
+ */
+.glassLayer {
+  position: fixed;
   left: 0;
-  right: 0;
   top: 0;
-  z-index: 0;
-  min-height: 100vh;
+  width: 100%;
   height: 100vh;
   height: 100dvh;
+  z-index: 3;
   pointer-events: none;
-  overflow: hidden;
+  will-change: opacity;
+  /* 스크롤 연동이 아닌 임계점 토글 — 전환감 있는 페이드를 위해 280ms 로 연장. */
+  transition: opacity 280ms ease;
 }
 
-/* 글래스 오브 WebGL (비활성 시 렌더 없음) */
-.glassLayer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 1;
-  min-height: 100%;
-  pointer-events: none;
+/* glassLayer 의 opacity 는 스크롤 크로스페이드가 점유 → 등장 모션은 별도 내부 래퍼가 담당.
+ * 오브 위치(x 오프셋) 는 처음부터 정확히 고정되어야 해서 transform(scale) 은 쓰지 않고
+ * opacity + filter(blur) 만으로 페이드 인 한다. */
+.glassIntroWrap {
+  width: 100%;
+  height: 100%;
+  will-change: opacity, filter;
 }
 
 .foreground {
@@ -51,3 +56,4 @@
   width: 100%;
   margin: 0 auto;
 }
+
