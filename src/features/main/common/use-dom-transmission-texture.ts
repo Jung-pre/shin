@@ -8,6 +8,8 @@ export interface ImageTransmissionTexture {
   texture: CanvasTexture | null;
   /** 리드로우(이미지 로드 / resize / target bbox 변화) 시 증가하는 버전 — demand frameloop invalidate 트리거 */
   version: number;
+  /** 원본 이미지(webp/png) 로드 및 첫 draw 완료 여부 */
+  isSourceReady: boolean;
 }
 
 export interface UseImageTransmissionTextureOptions {
@@ -50,6 +52,11 @@ export interface UseImageTransmissionTextureOptions {
    */
   srcFocusY?: number;
 }
+
+const getPngFallbackSrc = (url: string): string | null => {
+  const fallback = url.replace(/\.webp(?=($|[?#]))/i, ".png");
+  return fallback === url ? null : fallback;
+};
 
 /**
  * 렌즈(MeshTransmissionMaterial) 의 `buffer` uniform 에 꽂을 이미지 텍스처 훅.
@@ -99,6 +106,7 @@ export const useImageTransmissionTexture = (
   const imgRef = useRef<HTMLImageElement | null>(null);
   const imgReadyRef = useRef(false);
   const [version, setVersion] = useState(0);
+  const [isSourceReady, setIsSourceReady] = useState(false);
 
   /** 캔버스에 현재 뷰포트·target 기준으로 이미지를 cover/contain + center-center 로 재묘사 */
   const redraw = useCallback(() => {
@@ -181,25 +189,38 @@ export const useImageTransmissionTexture = (
   useEffect(() => {
     if (!texture) return;
     let alive = true;
+    let didTryFallback = false;
 
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    img.fetchPriority = "high";
+    img.loading = "eager";
     img.decoding = "async";
 
     const handleLoad = () => {
       if (!alive) return;
       imgRef.current = img;
       imgReadyRef.current = true;
+      setIsSourceReady(true);
       redraw();
+      // onload 시점이 Canvas invalidate bridge보다 빠르면 첫 프레임 갱신이 누락될 수 있어
+      // 한 번 더 마이크로 딜레이 재그리기 + version bump로 초기 표시를 보장한다.
+      requestAnimationFrame(() => {
+        if (!alive) return;
+        redraw();
+        setVersion((prev) => prev + 1);
+      });
     };
 
     img.addEventListener("load", handleLoad, { once: true });
     img.addEventListener(
       "error",
       () => {
-        /* 로드 실패 → placeholder 유지 */
+        if (didTryFallback) return;
+        const fallbackSrc = getPngFallbackSrc(src);
+        if (!fallbackSrc) return;
+        didTryFallback = true;
+        img.src = fallbackSrc;
       },
-      { once: true },
     );
     img.src = src;
 
@@ -207,6 +228,7 @@ export const useImageTransmissionTexture = (
       alive = false;
       imgReadyRef.current = false;
       imgRef.current = null;
+      setIsSourceReady(false);
     };
   }, [texture, src, redraw]);
 
@@ -276,5 +298,5 @@ export const useImageTransmissionTexture = (
     };
   }, [texture, redraw, targetRef]);
 
-  return { texture, version };
+  return { texture, version, isSourceReady };
 };

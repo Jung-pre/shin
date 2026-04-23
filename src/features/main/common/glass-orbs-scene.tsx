@@ -890,12 +890,19 @@ const ContextLossGuard = () => {
 interface GlassOrbsContentProps {
   bufferTexture: Texture | null;
   bufferVersion: number;
+  isBufferReady: boolean;
   config: SceneConfig;
   onFirstFrameReady?: () => void;
 }
 
-function GlassOrbsContent({ bufferTexture, bufferVersion, config, onFirstFrameReady }: GlassOrbsContentProps) {
-  if (!bufferTexture) return null;
+function GlassOrbsContent({
+  bufferTexture,
+  bufferVersion,
+  isBufferReady,
+  config,
+  onFirstFrameReady,
+}: GlassOrbsContentProps) {
+  if (!bufferTexture || !isBufferReady) return null;
 
   return (
     <>
@@ -918,13 +925,14 @@ function GlassOrbsContent({ bufferTexture, bufferVersion, config, onFirstFrameRe
 }
 
 interface FirstFrameReadyProps {
+  enabled?: boolean;
   onReady?: () => void;
 }
 
-const FirstFrameReady = ({ onReady }: FirstFrameReadyProps) => {
+const FirstFrameReady = ({ enabled = true, onReady }: FirstFrameReadyProps) => {
   const firedRef = useRef(false);
   useFrame(() => {
-    if (firedRef.current || !onReady) return;
+    if (!enabled || firedRef.current || !onReady) return;
     firedRef.current = true;
     onReady();
   });
@@ -1100,7 +1108,7 @@ export const GlassOrbsScene = ({
     invalidateRef.current?.();
   }, []);
 
-  const { texture: bufferTexture, version: bufferVersion } = useImageTransmissionTexture(
+  const { texture: bufferTexture, version: bufferVersion, isSourceReady } = useImageTransmissionTexture(
     sourceImageUrl,
     {
       targetRef,
@@ -1128,6 +1136,7 @@ export const GlassOrbsScene = ({
         <GlassOrbsContent
           bufferTexture={bufferTexture}
           bufferVersion={bufferVersion}
+          isBufferReady={isSourceReady}
           config={config}
           onFirstFrameReady={onFirstFrameReady}
         />

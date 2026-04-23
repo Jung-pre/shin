@@ -114,10 +114,10 @@ export const MainPage = ({
   const [gridScrollHot, setGridScrollHot] = useState(false);
   const [isGlassOrbsMounted, setIsGlassOrbsMounted] = useState(GLASS_ORBS_ENABLED);
   /**
-   * 기본 진입은 기존 동작 유지(즉시 크로스페이드 가능).
-   * 단, 아래로 내려갔다가 역방향 복귀로 3D를 재마운트한 경우엔 ready 신호 전까지 SVG를 유지한다.
+   * 기본 진입부터 "3D 준비 전엔 SVG 우선" 정책을 사용한다.
+   * (webp 텍스처/첫 프레임 준비가 끝나면 onFirstFrameReady 에서 true 로 전환)
    */
-  const [isGlassOrbsReady, setIsGlassOrbsReady] = useState(true);
+  const [isGlassOrbsReady, setIsGlassOrbsReady] = useState(false);
   const hasGlassOrbsUnmountedRef = useRef(false);
   const needReadyResetOnRemountRef = useRef(false);
   const scrollHotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
