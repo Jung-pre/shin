@@ -243,10 +243,15 @@ interface SvgGlassOverlayProps {
    * 생략하면 SVG 레이어만 페이드인 (3D 쪽은 건드리지 않음).
    */
   glassLayerRef?: RefObject<HTMLDivElement | null>;
+  /**
+   * 역방향 복귀 시 3D 글래스 준비 완료 여부.
+   * false 인 동안에는 상단 트리거 구간에서도 SVG를 유지해 "빈 프레임"을 숨긴다.
+   */
+  glassReady?: boolean;
 }
 
 export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(function SvgGlassOverlay(
-  { glassLayerRef },
+  { glassLayerRef, glassReady = true },
   ref,
 ) {
   const [lens1, setLens1] = useState<LensConfig>(DEFAULT_LENS1_CONFIG);
@@ -271,6 +276,10 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
   useEffect(() => {
     crossfadeRef.current = crossfade;
   }, [crossfade]);
+  const glassReadyRef = useRef(glassReady);
+  useEffect(() => {
+    glassReadyRef.current = glassReady;
+  }, [glassReady]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -300,9 +309,12 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       const bottomFactor = Math.min(1, Math.max(0, remaining / bottomPx));
 
       const isAtTop = y < triggerPx;
-      const glassOpacity = isAtTop ? 1 : 0;
+      const isGlassReady = glassReadyRef.current;
+      // 상단 구간에서 3D가 아직 준비되지 않았으면 SVG를 유지해 공백 프레임을 숨긴다.
+      const glassOpacity = isAtTop ? (isGlassReady ? 1 : 0) : 0;
       // SVG 는 트리거를 넘으면 1 을 기본으로 하되, 하단 근접 시 bottomFactor 로 감쇠.
-      const svgOpacity = isAtTop ? 0 : bottomFactor;
+      // 단, 상단 구간에서도 3D 준비 전에는 1 유지.
+      const svgOpacity = isAtTop ? (isGlassReady ? 0 : 1) : bottomFactor;
 
       return { glassOpacity, svgOpacity, isAtTop };
     };
@@ -383,8 +395,8 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     const remaining = docHeight - (y + vh);
     const bottomFactor = Math.min(1, Math.max(0, remaining / bottomPx));
     const isAtTop = y < triggerPx;
-    const glassOpacity = isAtTop ? 1 : 0;
-    const svgOpacity = isAtTop ? 0 : bottomFactor;
+    const glassOpacity = isAtTop ? (glassReady ? 1 : 0) : 0;
+    const svgOpacity = isAtTop ? (glassReady ? 0 : 1) : bottomFactor;
 
     const svgTarget = overlayRef.current;
     const glassTarget = glassLayerRef?.current ?? null;
@@ -402,7 +414,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       svgTarget.style.opacity = svgOpacity.toFixed(3);
       svgTarget.style.visibility = "visible";
     }
-  }, [crossfade, glassLayerRef]);
+  }, [crossfade, glassLayerRef, glassReady]);
 
   return (
     <>

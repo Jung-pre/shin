@@ -1,0 +1,32 @@
+# PR / push 마다 install → lint → build 로 깨짐을 바로 잡을 수 있음.
+# 미리보기 URL은 Vercel(권장)·Netlify 등에 저장소를 연동하면 자동으로 생성됨.
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      # 로컬에서 `npm run lint` 통과 시 아래 주석을 해제해 품질 게이트로 쓰면 됨.
+      # - name: Lint
+      #   run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          CI: "true"

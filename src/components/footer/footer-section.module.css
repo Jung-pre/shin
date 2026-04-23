@@ -211,16 +211,12 @@
   gap: 1rem;
 }
 
-/* 이미지 미사용 시 브랜드 로고 자리(동일 비율) */
-.brandLogoSlot {
+.brandLogo {
   display: block;
-  flex-shrink: 0;
   width: 12.3rem;
   height: 2.02rem;
   max-width: 100%;
-  border-radius: 0.25rem;
-  background: rgba(255, 255, 255, 0.08);
-  box-sizing: border-box;
+  object-fit: contain;
 }
 
 .snsList {
@@ -248,14 +244,11 @@
   text-decoration: none;
 }
 
-/* SNS 아이콘 이미지 대신 24×24 영역 */
-.snsIconSlot {
+.snsIcon {
   display: block;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 0.25rem;
-  background: rgba(255, 255, 255, 0.1);
-  flex-shrink: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .companyInfoLine {
@@ -312,15 +305,12 @@
   letter-spacing: -0.02625rem;
 }
 
-/* 지도 이미지 대신 동일 크기 영역 */
 .mapPanel {
   width: 53.9375rem;
   height: 44.1875rem;
   flex-shrink: 0;
   border-radius: 1.875rem;
-  background: rgba(255, 255, 255, 0.06);
-  box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--footer-map-bg) lightgray 50% / cover no-repeat;
 }
 
 @media (max-width: 1200px) {

@@ -75,6 +75,13 @@ export interface MainPageProps {
 }
 
 const SCROLL_HOT_IDLE_MS = 520;
+/**
+ * 3D 글래스는 히어로 구간에서만 필요하므로, 충분히 벗어나면 언마운트해 GPU 점유를 해제한다.
+ * 모션의 방향/타이밍은 유지하기 위해 크로스페이드 임계점(triggerVh=0.25)보다 "뒤"에서만 해제.
+ * 위로 다시 올라오면(remount) 자동 복귀.
+ */
+const GLASS_ORBS_UNMOUNT_SCROLL_VH = 0.55;
+const GLASS_ORBS_REMOUNT_SCROLL_VH = 0.18;
 
 export const MainPage = ({
   locale,
@@ -105,6 +112,14 @@ export const MainPage = ({
    */
   const heroTitleRef = useRef<HTMLHeadingElement>(null);
   const [gridScrollHot, setGridScrollHot] = useState(false);
+  const [isGlassOrbsMounted, setIsGlassOrbsMounted] = useState(GLASS_ORBS_ENABLED);
+  /**
+   * 기본 진입은 기존 동작 유지(즉시 크로스페이드 가능).
+   * 단, 아래로 내려갔다가 역방향 복귀로 3D를 재마운트한 경우엔 ready 신호 전까지 SVG를 유지한다.
+   */
+  const [isGlassOrbsReady, setIsGlassOrbsReady] = useState(true);
+  const hasGlassOrbsUnmountedRef = useRef(false);
+  const needReadyResetOnRemountRef = useRef(false);
   const scrollHotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
@@ -163,6 +178,50 @@ export const MainPage = ({
   );
 
   useEffect(() => {
+    if (!GLASS_ORBS_ENABLED) {
+      setIsGlassOrbsMounted(false);
+      return;
+    }
+
+    const updateGlassOrbsMount = () => {
+      const vh = window.innerHeight || 1;
+      const y = window.scrollY;
+      const unmountAt = vh * GLASS_ORBS_UNMOUNT_SCROLL_VH;
+      const remountAt = vh * GLASS_ORBS_REMOUNT_SCROLL_VH;
+
+      setIsGlassOrbsMounted((prev) => {
+        if (prev && y > unmountAt) {
+          hasGlassOrbsUnmountedRef.current = true;
+          return false;
+        }
+        if (!prev && y < remountAt) {
+          if (hasGlassOrbsUnmountedRef.current) {
+            needReadyResetOnRemountRef.current = true;
+          }
+          return true;
+        }
+        return prev;
+      });
+    };
+
+    updateGlassOrbsMount();
+    window.addEventListener("scroll", updateGlassOrbsMount, { passive: true });
+    window.addEventListener("resize", updateGlassOrbsMount);
+    return () => {
+      window.removeEventListener("scroll", updateGlassOrbsMount);
+      window.removeEventListener("resize", updateGlassOrbsMount);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isGlassOrbsMounted) return;
+    if (!needReadyResetOnRemountRef.current) return;
+    // 역방향 재진입에서만 "3D 준비 대기" 모드 활성화.
+    setIsGlassOrbsReady(false);
+    needReadyResetOnRemountRef.current = false;
+  }, [isGlassOrbsMounted]);
+
+  useEffect(() => {
     const markHot = () => {
       setGridScrollHot(true);
       if (scrollHotTimerRef.current) {
@@ -195,12 +254,23 @@ export const MainPage = ({
           <div ref={glassLayerRef} className={styles.glassLayer}>
             {/* glassLayerRef 는 크로스페이드 opacity 점유 → 등장 모션은 이 내부 래퍼가 담당 */}
             <div ref={glassIntroRef} className={styles.glassIntroWrap}>
-              <GlassOrbsScene targetRef={heroTitleRef} />
+              {isGlassOrbsMounted ? (
+                <GlassOrbsScene
+                  targetRef={heroTitleRef}
+                  onFirstFrameReady={() => {
+                    setIsGlassOrbsReady(true);
+                  }}
+                />
+              ) : null}
             </div>
           </div>
           {/* 히어로 이후 페이지 끝까지 이어지는 경량 글래스 — 스크롤로 크로스페이드 인.
               크로스페이드(3D ↔ SVG) 로직은 SvgGlassOverlay 내부에서 glassLayerRef 로 직접 제어. */}
-          <SvgGlassOverlay ref={svgGlassLayerRef} glassLayerRef={glassLayerRef} />
+          <SvgGlassOverlay
+            ref={svgGlassLayerRef}
+            glassLayerRef={glassLayerRef}
+            glassReady={isGlassOrbsReady}
+          />
         </>
       ) : null}
       <div className={styles.foreground}>

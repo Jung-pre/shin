@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import Image from "next/image";
+import { useRef, type CSSProperties } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
@@ -22,7 +23,13 @@ export function FooterSection({ messages, className }: FooterSectionProps) {
   const bottomBrandRef = useRef<HTMLDivElement>(null);
   const mapPanelRef = useRef<HTMLDivElement>(null);
   const titleLines = messages.title.split("\n");
-  const snsSlotCount = 5;
+  const snsIcons = [
+    "/common/img_footer_sns01.png",
+    "/common/img_footer_sns02.png",
+    "/common/img_footer_sns03.png",
+    "/common/img_footer_sns04.png",
+    "/common/img_footer_sns05.png",
+  ];
 
   useGSAP(
     () => {
@@ -135,16 +142,25 @@ export function FooterSection({ messages, className }: FooterSectionProps) {
 
             <div ref={bottomBrandRef} className={styles.bottomBrand}>
               <div className={styles.bottomBrandTop}>
-                <div
-                  className={styles.brandLogoSlot}
-                  role="img"
-                  aria-label={messages.brandName}
+                <img
+                  src="/common/img_footer_logo.png"
+                  alt={messages.brandName}
+                  className={styles.brandLogo}
+                  loading="lazy"
+                  decoding="async"
                 />
                 <ul className={styles.snsList}>
-                  {Array.from({ length: snsSlotCount }).map((_, index) => (
-                    <li key={`sns-slot-${index}`} className={styles.snsItem}>
+                  {snsIcons.map((iconSrc, index) => (
+                    <li key={iconSrc} className={styles.snsItem}>
                       <a href="#" className={styles.snsLink} aria-label={`sns-link-${index + 1}`}>
-                        <span className={styles.snsIconSlot} />
+                        <Image
+                          src={iconSrc}
+                          alt=""
+                          width={24}
+                          height={24}
+                          className={styles.snsIcon}
+                          loading="lazy"
+                        />
                       </a>
                     </li>
                   ))}
@@ -175,6 +191,7 @@ export function FooterSection({ messages, className }: FooterSectionProps) {
             className={styles.mapPanel}
             role="img"
             aria-label={messages.mapAlt}
+            style={{ "--footer-map-bg": `url("${messages.mapImageSrc}")` } as CSSProperties}
           />
         </div>
       </div>

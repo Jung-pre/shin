@@ -891,14 +891,16 @@ interface GlassOrbsContentProps {
   bufferTexture: Texture | null;
   bufferVersion: number;
   config: SceneConfig;
+  onFirstFrameReady?: () => void;
 }
 
-function GlassOrbsContent({ bufferTexture, bufferVersion, config }: GlassOrbsContentProps) {
+function GlassOrbsContent({ bufferTexture, bufferVersion, config, onFirstFrameReady }: GlassOrbsContentProps) {
   if (!bufferTexture) return null;
 
   return (
     <>
       <ContextLossGuard />
+      <FirstFrameReady onReady={onFirstFrameReady} />
       {/* HDR env 가 ON 이면 그쪽이 우선. OFF 일 때는 경량 Rim env 가 유리 엣지에 색을 깔아 준다. */}
       {config.envEnabled ? (
         <Suspense fallback={null}>
@@ -914,6 +916,20 @@ function GlassOrbsContent({ bufferTexture, bufferVersion, config }: GlassOrbsCon
     </>
   );
 }
+
+interface FirstFrameReadyProps {
+  onReady?: () => void;
+}
+
+const FirstFrameReady = ({ onReady }: FirstFrameReadyProps) => {
+  const firedRef = useRef(false);
+  useFrame(() => {
+    if (firedRef.current || !onReady) return;
+    firedRef.current = true;
+    onReady();
+  });
+  return null;
+};
 
 /* ---------- 옵션 조절 레이어 (DevTool) ---------- */
 
@@ -1056,6 +1072,8 @@ export interface GlassOrbsSceneProps {
    * 지정하면 렌즈 속 글자와 실제 DOM 글자 위치가 1:1 정합됨.
    */
   targetRef?: RefObject<HTMLElement | null>;
+  /** 3D 글래스가 첫 렌더 프레임을 그렸을 때 호출 */
+  onFirstFrameReady?: () => void;
 }
 
 const DEFAULT_SOURCE_IMAGE = "/main/img_hero.webp";
@@ -1070,6 +1088,7 @@ const SHOW_GLASS_SCENE_CONFIG_PANEL = false;
 export const GlassOrbsScene = ({
   sourceImageUrl = DEFAULT_SOURCE_IMAGE,
   targetRef,
+  onFirstFrameReady,
 }: GlassOrbsSceneProps) => {
   const [config, setConfig] = useState<SceneConfig>(DEFAULT_CONFIG);
 
@@ -1110,6 +1129,7 @@ export const GlassOrbsScene = ({
           bufferTexture={bufferTexture}
           bufferVersion={bufferVersion}
           config={config}
+          onFirstFrameReady={onFirstFrameReady}
         />
       </Canvas>
 
