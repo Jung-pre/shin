@@ -178,6 +178,10 @@ export const MainPage = ({
   );
 
   useEffect(() => {
+    console.log("text");
+  }, []);
+
+  useEffect(() => {
     if (!GLASS_ORBS_ENABLED) {
       setIsGlassOrbsMounted(false);
       return;
