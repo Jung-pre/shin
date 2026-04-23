@@ -27,7 +27,13 @@ export default function RootLayout({
   return (
     <html lang="ko" className={marcellus.variable}>
       <head>
-        <link rel="preload" as="image" href="/main/img_hero.webp" type="image/webp" />
+        <link
+          rel="preload"
+          as="image"
+          href="/main/img_hero.webp"
+          type="image/webp"
+          fetchPriority="high"
+        />
       </head>
       <body>{children}</body>
     </html>

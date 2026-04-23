@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, type FormEvent, type RefObject } from "react";
 import clsx from "clsx";
 import type { HeroQuickBarMessages } from "@/shared/i18n/messages";
@@ -209,6 +210,17 @@ export function MainHero({ heroQuickBar, locale, titleRef }: MainHeroProps) {
 
   return (
     <section className={styles.section} aria-label="Hero">
+      {/* 히어로 소스 이미지를 next/image priority 로 워밍해 초기 네트워크 우선순위를 고정한다. */}
+      <div className={styles.heroImageWarmup} aria-hidden>
+        <Image
+          src="/main/img_hero.webp"
+          alt=""
+          fill
+          sizes="100vw"
+          priority
+          fetchPriority="high"
+        />
+      </div>
       <div className={styles.titleWrap}>
         {/* h1 자체는 글래스 텍스처 bbox 기준이라 transform 금지 — 내부 span 만 애니메이션. */}
         <h1 ref={titleRef} className={styles.title} data-hero-intro="title" aria-label={titleText}>

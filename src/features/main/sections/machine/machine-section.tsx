@@ -46,6 +46,7 @@ export function MachineSection({ messages }: MachineSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const pinRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
+  const [shouldMountModels, setShouldMountModels] = useState(false);
   const reduceMotion = useReducedMotion();
   // 두 GLB 모델의 설정을 개별 관리 — 설정 패널에서 실시간 튜닝.
   //   800 은 디자인 확정값(VISUMAX_800_DEFAULT_CONFIG) 로 시작, 500 은 표준값.
@@ -68,6 +69,29 @@ export function MachineSection({ messages }: MachineSectionProps) {
   useEffect(() => {
     setConfig500(DEFAULT_MODEL_SCENE_CONFIG);
   }, [DEFAULT_MODEL_SCENE_CONFIG]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const section = sectionRef.current;
+    if (!section) return;
+    if (!("IntersectionObserver" in window)) {
+      setShouldMountModels(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (!entry?.isIntersecting) return;
+        setShouldMountModels(true);
+        observer.disconnect();
+      },
+      // 머신 섹션 진입 직전부터 GLB/HDR 로드를 시작해 히어로 우선 로딩을 보장한다.
+      { root: null, rootMargin: "700px 0px", threshold: 0.01 },
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
   const primaryMachine = messages.machines[0];
   const machines = messages.machines.length > 0 ? messages.machines : [primaryMachine];
 
@@ -269,11 +293,13 @@ export function MachineSection({ messages }: MachineSectionProps) {
               className={`${styles.modelOverlay} ${isVisumax800 ? "" : styles.modelOverlayInactive}`}
               style={{ ["--overlay-scale" as string]: config800.overlayScale }}
             >
-              <VisumaxModelScene
-                modelUrl="/main/visumax800.glb"
-                config={config800}
-                onLoaded={handleModel800Loaded}
-              />
+              {shouldMountModels ? (
+                <VisumaxModelScene
+                  modelUrl="/main/visumax800.glb"
+                  config={config800}
+                  onLoaded={handleModel800Loaded}
+                />
+              ) : null}
             </div>
           </motion.div>
           <motion.div
@@ -292,11 +318,13 @@ export function MachineSection({ messages }: MachineSectionProps) {
               className={`${styles.modelOverlay} ${isVisumax500 ? "" : styles.modelOverlayInactive}`}
               style={{ ["--overlay-scale" as string]: config500.overlayScale }}
             >
-              <VisumaxModelScene
-                modelUrl="/main/visumax500.glb"
-                config={config500}
-                onLoaded={handleModel500Loaded}
-              />
+              {shouldMountModels ? (
+                <VisumaxModelScene
+                  modelUrl="/main/visumax500.glb"
+                  config={config500}
+                  onLoaded={handleModel500Loaded}
+                />
+              ) : null}
             </div>
           </motion.div>
         </div>

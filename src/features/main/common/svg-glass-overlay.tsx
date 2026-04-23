@@ -66,6 +66,11 @@ const DEFAULT_CROSSFADE: CrossfadeConfig = {
 };
 /** 역방향(아래→위) 복귀 시, 이 시간(ms) 동안 스크롤 입력이 없으면 "정지"로 간주 */
 const REVERSE_HANDOFF_IDLE_MS = 140;
+/**
+ * 첫 진입에서 3D 글래스 준비가 늦을 때만 fallback SVG 를 노출하기 위한 지연.
+ * 히어로 타이틀 인트로(약 1.1s) 이후에 자연스럽게 바통터치한다.
+ */
+const READY_FALLBACK_DELAY_MS = 1150;
 
 /**
  * dev 튜닝용 렌즈 옵션 패널 노출 스위치.
@@ -259,6 +264,8 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
   const [lens1, setLens1] = useState<LensConfig>(DEFAULT_LENS1_CONFIG);
   const [lens2, setLens2] = useState<LensConfig>(DEFAULT_LENS2_CONFIG);
   const [crossfade, setCrossfade] = useState<CrossfadeConfig>(DEFAULT_CROSSFADE);
+  const [showReadyFallbackSvg, setShowReadyFallbackSvg] = useState(false);
+  const showReadyFallbackSvgRef = useRef(showReadyFallbackSvg);
 
   // 외부(ref 포워딩) 와 내부(스크롤 핸들러) 양쪽에서 참조해야 하므로
   // 로컬 ref 로 잡고, useImperativeHandle 로 부모 ref 에도 같은 엘리먼트를 노출.
@@ -282,6 +289,20 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
   useEffect(() => {
     glassReadyRef.current = glassReady;
   }, [glassReady]);
+  useEffect(() => {
+    if (glassReady) {
+      setShowReadyFallbackSvg(false);
+      return;
+    }
+    setShowReadyFallbackSvg(false);
+    const timer = setTimeout(() => {
+      setShowReadyFallbackSvg(true);
+    }, READY_FALLBACK_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [glassReady]);
+  useEffect(() => {
+    showReadyFallbackSvgRef.current = showReadyFallbackSvg;
+  }, [showReadyFallbackSvg]);
   // 역방향 복귀 핸드오프 상태 추적
   const prevScrollYRef = useRef(0);
   const lastScrollTsRef = useRef(0);
@@ -301,6 +322,19 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     let lastGlassZ = "";
 
     const compute = () => {
+      const isGlassReady = glassReadyRef.current;
+      // 요구사항:
+      //  1) 준비 전에는 기본적으로 SVG를 먼저 노출하지 않는다.
+      //  2) 준비가 지연되면 fallback SVG를 부드럽게 올린다.
+      //  3) 준비 전에는 스크롤 기반 크로스페이드 로직을 정지한다.
+      if (!isGlassReady) {
+        return {
+          glassOpacity: showReadyFallbackSvgRef.current ? 0 : 1,
+          svgOpacity: showReadyFallbackSvgRef.current ? 1 : 0,
+          isAtTop: true,
+        };
+      }
+
       const vh = window.innerHeight || 1;
       const { triggerVh, bottomFadeVh } = crossfadeRef.current;
       const y = window.scrollY;
@@ -317,7 +351,6 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       const bottomFactor = Math.min(1, Math.max(0, remaining / bottomPx));
 
       const isAtTop = y < triggerPx;
-      const isGlassReady = glassReadyRef.current;
       const delta = y - prevScrollYRef.current;
       if (Math.abs(delta) > 0.3) {
         lastScrollTsRef.current = now;
@@ -435,6 +468,24 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
   // trigger/bottom 값이 바뀌면 (패널 조작) 즉시 한 번 다시 계산해서 결과 반영.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!glassReady) {
+      const svgTarget = overlayRef.current;
+      const glassTarget = glassLayerRef?.current ?? null;
+      const glassOpacity = showReadyFallbackSvg ? 0 : 1;
+      const svgOpacity = showReadyFallbackSvg ? 1 : 0;
+      if (glassTarget) {
+        if (glassOpacity > 0) {
+          glassTarget.style.visibility = "visible";
+        }
+        glassTarget.style.opacity = glassOpacity.toFixed(3);
+        glassTarget.style.zIndex = "3";
+      }
+      if (svgTarget) {
+        svgTarget.style.opacity = svgOpacity.toFixed(3);
+        svgTarget.style.visibility = "visible";
+      }
+      return;
+    }
     const vh = window.innerHeight || 1;
     const y = window.scrollY;
     const now = performance.now();
@@ -486,7 +537,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       svgTarget.style.opacity = svgOpacity.toFixed(3);
       svgTarget.style.visibility = "visible";
     }
-  }, [crossfade, glassLayerRef, glassReady]);
+  }, [crossfade, glassLayerRef, glassReady, showReadyFallbackSvg]);
 
   return (
     <>
