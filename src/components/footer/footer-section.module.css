@@ -310,7 +310,10 @@
   height: 44.1875rem;
   flex-shrink: 0;
   border-radius: 1.875rem;
-  background: var(--footer-map-bg) lightgray 50% / cover no-repeat;
+  background-color: lightgray;
+  background-position: 50% 50%;
+  background-size: cover;
+  background-repeat: no-repeat;
 }
 
 @media (max-width: 1200px) {

@@ -41,7 +41,12 @@ export function FooterSection({ messages, className }: FooterSectionProps) {
       const mapTarget = mapPanelRef.current;
 
       if (reduceMotion) {
-        gsap.set([...leftTargets, mapTarget].filter(Boolean), { autoAlpha: 1, clearProps: "all" });
+        gsap.set([...leftTargets, mapTarget].filter(Boolean), {
+          autoAlpha: 1,
+          x: 0,
+          y: 0,
+          clearProps: "opacity,visibility,transform",
+        });
         return;
       }
 
@@ -84,7 +89,6 @@ export function FooterSection({ messages, className }: FooterSectionProps) {
             x: 0,
             duration: 0.92,
             ease: "power3.out",
-            clearProps: "opacity,visibility,transform",
           },
           "-=0.28",
         );
@@ -191,7 +195,7 @@ export function FooterSection({ messages, className }: FooterSectionProps) {
             className={styles.mapPanel}
             role="img"
             aria-label={messages.mapAlt}
-            style={{ "--footer-map-bg": `url("${messages.mapImageSrc}")` } as CSSProperties}
+            style={{ backgroundImage: `url("${messages.mapImageSrc}")` } as CSSProperties}
           />
         </div>
       </div>
