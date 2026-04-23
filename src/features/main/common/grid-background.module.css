@@ -72,6 +72,11 @@
   }
 }
 
+/* 스크롤 중 반짝임 정지 — data-scrolling 속성이 붙는 동안 CSS 애니메이션을 일시정지 */
+.background[data-scrolling] .glowCell {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glowCell {
     animation: none;

@@ -176,6 +176,11 @@ export function GridBackground({ scrollHot = false }: GridBackgroundProps) {
       const delta = currentScrollY - previousScrollY;
       previousScrollY = currentScrollY;
 
+      // 오버스크롤(rubber-band) 구간 — scrollY < 0 일 때는 스크롤 멈춤과 동일하게 무시.
+      if (currentScrollY < 0) {
+        return;
+      }
+
       if (Math.abs(delta) < 0.2) {
         return;
       }
@@ -373,7 +378,7 @@ export function GridBackground({ scrollHot = false }: GridBackgroundProps) {
   }, []);
 
   return (
-    <div ref={backgroundRef} className={styles.background} aria-hidden>
+    <div ref={backgroundRef} className={styles.background} data-scrolling={scrollHot || undefined} aria-hidden>
       <div className={styles.baseWash} />
       <div ref={pinkOverlayRef} className={styles.scrollPink} />
       <svg className={styles.gridSvg} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">

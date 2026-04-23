@@ -118,6 +118,13 @@ export const MainPage = ({
    * (webp 텍스처/첫 프레임 준비가 끝나면 onFirstFrameReady 에서 true 로 전환)
    */
   const [isGlassOrbsReady, setIsGlassOrbsReady] = useState(false);
+  /**
+   * true = 역방향 재진입으로 인한 리마운트 상황.
+   * SvgGlassOverlay 에서 "첫 로드" vs "역방향 재진입"을 구분하는 데 쓴다.
+   *   - false(첫 로드): GSAP 인트로가 글래스를 책임지므로 SVG 레이어를 건드리지 않음.
+   *   - true (리마운트): SVG 를 즉시 보여주고 glassReady 신호 오면 부드럽게 전환.
+   */
+  const [isGlassRemount, setIsGlassRemount] = useState(false);
   const hasGlassOrbsUnmountedRef = useRef(false);
   const needReadyResetOnRemountRef = useRef(false);
   const scrollHotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -220,8 +227,9 @@ export const MainPage = ({
   useEffect(() => {
     if (!isGlassOrbsMounted) return;
     if (!needReadyResetOnRemountRef.current) return;
-    // 역방향 재진입에서만 "3D 준비 대기" 모드 활성화.
+    // 역방향 재진입 리마운트: SVG 즉시 대기 모드로 전환.
     setIsGlassOrbsReady(false);
+    setIsGlassRemount(true);
     needReadyResetOnRemountRef.current = false;
   }, [isGlassOrbsMounted]);
 
@@ -263,6 +271,7 @@ export const MainPage = ({
                   targetRef={heroTitleRef}
                   onFirstFrameReady={() => {
                     setIsGlassOrbsReady(true);
+                    setIsGlassRemount(false);
                   }}
                 />
               ) : null}
@@ -274,6 +283,8 @@ export const MainPage = ({
             ref={svgGlassLayerRef}
             glassLayerRef={glassLayerRef}
             glassReady={isGlassOrbsReady}
+            isRemount={isGlassRemount}
+            onGlassReady={() => setIsGlassRemount(false)}
           />
         </>
       ) : null}
