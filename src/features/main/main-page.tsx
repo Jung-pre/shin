@@ -112,6 +112,7 @@ export const MainPage = ({
    */
   const heroTitleRef = useRef<HTMLHeadingElement>(null);
   const [gridScrollHot, setGridScrollHot] = useState(false);
+  const [isGridVisible, setIsGridVisible] = useState(true);
   const [isGlassOrbsMounted, setIsGlassOrbsMounted] = useState(GLASS_ORBS_ENABLED);
   /**
    * 기본 진입부터 "3D 준비 전엔 SVG 우선" 정책을 사용한다.
@@ -128,6 +129,19 @@ export const MainPage = ({
   const hasGlassOrbsUnmountedRef = useRef(false);
   const needReadyResetOnRemountRef = useRef(false);
   const scrollHotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 히어로 섹션(= 그리드가 보이는 구간)이 뷰포트에서 사라지면 반짝임 정지.
+  // heroTitleRef 를 sentinel 로 사용 — 제목이 화면 밖으로 나가면 그리드 가려진 것으로 판단.
+  useEffect(() => {
+    const el = heroTitleRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsGridVisible(entry?.isIntersecting ?? true),
+      { rootMargin: "120px 0px 0px 0px", threshold: 0 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   /**
    * 첫 진입 시 히어로 등장 모션:
@@ -259,7 +273,7 @@ export const MainPage = ({
   return (
     <main ref={mainRef} className={styles.root}>
       <div className={styles.gridFixed} aria-hidden>
-        <GridBackground scrollHot={gridScrollHot} />
+        <GridBackground scrollHot={gridScrollHot} visible={isGridVisible} />
       </div>
       {GLASS_ORBS_ENABLED ? (
         <>

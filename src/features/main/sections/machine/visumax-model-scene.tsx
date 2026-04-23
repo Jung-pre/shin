@@ -3,6 +3,7 @@
 import { memo, Suspense, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Bounds, Environment, PresentationControls, useGLTF } from "@react-three/drei";
+import * as THREE from "three";
 import {
   DEFAULT_MODEL_SCENE_CONFIG,
   type ModelSceneConfig,
@@ -49,19 +50,36 @@ const SPRING_DAMPING = 1;
 
 interface GltfModelProps {
   url: string;
+  metalness?: number;
+  roughness?: number;
   /** GLB 파싱/마운트 직후 1회 호출 — 부모가 "이제 모델이 화면에 붙었다" 는 신호로 사용. */
   onReady?: () => void;
 }
 
-const GltfModel = ({ url, onReady }: GltfModelProps) => {
+const GltfModel = ({ url, metalness = -1, roughness = -1, onReady }: GltfModelProps) => {
   const { scene } = useGLTF(url);
-  // useGLTF 는 Suspense 로 해소되므로 여기까지 도달했다면 파싱은 끝난 상태.
-  //   primitive 가 씬에 실제로 추가된 뒤 다음 틱에 콜백을 쏴 DOM 페이드와 타이밍을 맞춘다.
+
+  // 재질 오버라이드: -1이면 원본 GLB 값 유지, 그 외 값으로 강제 적용
+  useEffect(() => {
+    scene.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach((mat) => {
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          if (metalness >= 0) mat.metalness = metalness;
+          if (roughness >= 0) mat.roughness = roughness;
+          mat.needsUpdate = true;
+        }
+      });
+    });
+  }, [scene, metalness, roughness]);
+
   useEffect(() => {
     if (!onReady) return;
     const id = window.requestAnimationFrame(() => onReady());
     return () => window.cancelAnimationFrame(id);
   }, [onReady]);
+
   return <primitive object={scene} />;
 };
 
@@ -79,14 +97,19 @@ const GltfModel = ({ url, onReady }: GltfModelProps) => {
  */
 const BoundedModel = memo(function BoundedModel({
   url,
+  metalness,
+  roughness,
   onReady,
 }: {
   url: string;
+  metalness?: number;
+  roughness?: number;
   onReady?: () => void;
 }) {
   return (
-    <Bounds fit clip margin={1.05}>
-      <GltfModel url={url} onReady={onReady} />
+    // damping=0: 카메라 fit 즉시 적용, 기본값(6)은 부드럽게 이동해 "날아오는" 느낌을 줌.
+    <Bounds fit clip margin={1.05} damping={0}>
+      <GltfModel url={url} metalness={metalness} roughness={roughness} onReady={onReady} />
     </Bounds>
   );
 });
@@ -145,7 +168,12 @@ export const VisumaxModelScene = ({
             damping={SPRING_DAMPING}
           >
             <group rotation={[config.rotationX, config.rotationY, 0]} scale={config.scale}>
-              <BoundedModel url={modelUrl} onReady={onLoaded} />
+              <BoundedModel
+                url={modelUrl}
+                metalness={config.metalness}
+                roughness={config.roughness}
+                onReady={onLoaded}
+              />
             </group>
           </PresentationControls>
         </group>

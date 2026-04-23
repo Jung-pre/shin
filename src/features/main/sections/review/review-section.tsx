@@ -37,10 +37,12 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
   const filteredCards = messages.cards;
   const slides = useMemo(
     () => [
-      { src: messages.featuredImageSrc, alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
-      ...filteredCards.map((card) => ({ src: card.imageSrc, alt: card.label, href: card.href ?? "#" })),
+      { src: "/main/img_main_review01.png", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
+      { src: "/main/img_main_review01_02.png", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
+      { src: "/main/img_main_review01_03.png", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
+      { src: "/main/img_main_review01_04.png", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
     ],
-    [filteredCards, messages.featuredAlt, messages.featuredHref, messages.featuredImageSrc],
+    [messages.featuredAlt, messages.featuredHref],
   );
   const [activeSlide, setActiveSlide] = useState(0);
   const [slideDirection, setSlideDirection] = useState<1 | -1>(1);

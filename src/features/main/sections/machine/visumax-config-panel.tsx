@@ -21,13 +21,16 @@ import {
 interface VisumaxConfigPanelProps {
   config800: ModelSceneConfig;
   config500: ModelSceneConfig;
+  configCatalys: ModelSceneConfig;
   onChange800: (next: ModelSceneConfig) => void;
   onChange500: (next: ModelSceneConfig) => void;
+  onChangeCatalys: (next: ModelSceneConfig) => void;
   onReset800: () => void;
   onReset500: () => void;
+  onResetCatalys: () => void;
 }
 
-type ModelKey = "800" | "500";
+type ModelKey = "800" | "500" | "catalys";
 
 interface ModelSectionProps {
   title: string;
@@ -173,6 +176,39 @@ const ModelSection = ({ title, config, onChange, onReset }: ModelSectionProps) =
       </div>
 
       <div className={styles.panelFieldGroup}>
+        <span className={styles.panelFieldGroupLabel}>재질 (Material)</span>
+        <label className={styles.panelField}>
+          <span>
+            Metalness(금속성):{" "}
+            {config.metalness < 0 ? "GLB 원본" : config.metalness.toFixed(2)}
+          </span>
+          <input
+            type="range"
+            min={-1}
+            max={1}
+            step={0.01}
+            value={config.metalness}
+            onChange={handleNumber("metalness")}
+          />
+        </label>
+        <label className={styles.panelField}>
+          <span>
+            Roughness(거칠기):{" "}
+            {config.roughness < 0 ? "GLB 원본" : config.roughness.toFixed(2)}
+          </span>
+          <input
+            type="range"
+            min={-1}
+            max={1}
+            step={0.01}
+            value={config.roughness}
+            onChange={handleNumber("roughness")}
+          />
+        </label>
+        <p className={styles.panelHint}>-1 = GLB 원본 값 유지</p>
+      </div>
+
+      <div className={styles.panelFieldGroup}>
         <span className={styles.panelFieldGroupLabel}>조명 / Environment</span>
         {/* 쨍함의 주 원인은 envIntensity + studio preset.
          *   톤이 강하게 느껴지면 envIntensity 부터 내려보고, 그래도 뿌옇게 보이면
@@ -232,10 +268,13 @@ const ModelSection = ({ title, config, onChange, onReset }: ModelSectionProps) =
 export const VisumaxConfigPanel = ({
   config800,
   config500,
+  configCatalys,
   onChange800,
   onChange500,
+  onChangeCatalys,
   onReset800,
   onReset500,
+  onResetCatalys,
 }: VisumaxConfigPanelProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ModelKey>("800");
@@ -273,21 +312,37 @@ export const VisumaxConfigPanel = ({
               >
                 VISUMAX 500
               </button>
+              <button
+                type="button"
+                className={`${styles.panelTab} ${activeTab === "catalys" ? styles.panelTabActive : ""}`}
+                onClick={() => setActiveTab("catalys")}
+              >
+                Catalys Laser
+              </button>
             </div>
           </div>
-          {activeTab === "800" ? (
+          {activeTab === "800" && (
             <ModelSection
               title="VISUMAX 800"
               config={config800}
               onChange={onChange800}
               onReset={onReset800}
             />
-          ) : (
+          )}
+          {activeTab === "500" && (
             <ModelSection
               title="VISUMAX 500"
               config={config500}
               onChange={onChange500}
               onReset={onReset500}
+            />
+          )}
+          {activeTab === "catalys" && (
+            <ModelSection
+              title="Catalys Laser"
+              config={configCatalys}
+              onChange={onChangeCatalys}
+              onReset={onResetCatalys}
             />
           )}
         </div>

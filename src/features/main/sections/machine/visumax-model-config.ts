@@ -56,6 +56,10 @@ export interface ModelSceneConfig {
   directionalIntensity: number;
   envIntensity: number;
   envPreset: EnvPresetKey;
+  /** 메시 재질 metalness 오버라이드 (0=비금속, 1=완전금속). -1이면 원본 GLB 값 유지. */
+  metalness: number;
+  /** 메시 재질 roughness 오버라이드 (0=매끈, 1=거침). -1이면 원본 GLB 값 유지. */
+  roughness: number;
 }
 
 export const DEFAULT_MODEL_SCENE_CONFIG: ModelSceneConfig = {
@@ -72,6 +76,8 @@ export const DEFAULT_MODEL_SCENE_CONFIG: ModelSceneConfig = {
   directionalIntensity: 0.7,
   envIntensity: 0.45,
   envPreset: "studio",
+  metalness: -1,
+  roughness: -1,
 };
 
 const DEG = Math.PI / 180;
@@ -86,4 +92,24 @@ export const VISUMAX_800_DEFAULT_CONFIG: ModelSceneConfig = {
   positionZ: 0,
   rotationX: 4.5 * DEG,
   rotationY: -14.4 * DEG,
+};
+
+/** Catalys Laser 전용 초기값 — 패널에서 확정된 값. */
+export const CATALYS_DEFAULT_CONFIG: ModelSceneConfig = {
+  ...DEFAULT_MODEL_SCENE_CONFIG,
+  overlayScale: 1.15,
+  scale: 1,
+  positionX: 0.35,
+  positionY: 0,
+  positionZ: 0,
+  rotationX: 12.6 * DEG,
+  rotationY: -21.3 * DEG,
+  azimuthLimit: 43.0 * DEG,
+  polarLimit: 28.6 * DEG,
+  ambientIntensity: 2.0,
+  directionalIntensity: 1.7,
+  envIntensity: 0,
+  envPreset: "night",
+  metalness: -1,
+  roughness: -1,
 };

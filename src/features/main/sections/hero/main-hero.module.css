@@ -362,9 +362,14 @@
   align-items: center;
   gap: 6px;
   padding: 0 1.5rem;
-  color: var(--quick-purple);
-  font-size: 0.8125rem;
-  font-weight: 600;
+  color: #404040;
+  font-size: 1.125rem;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 160%;
+  letter-spacing: -0.0225rem;
+  text-align: center;
+  text-transform: capitalize;
   white-space: nowrap;
   transition: opacity 0.2s ease;
 }
@@ -379,7 +384,7 @@
 
 .linkIcon {
   flex-shrink: 0;
-  color: var(--quick-purple);
+  color: #404040;
 }
 
 @media (max-width: 1200px) {

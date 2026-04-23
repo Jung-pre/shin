@@ -51,6 +51,7 @@ const ORB_RADIUS = 1.72;
 const ORB_POSITION: Vector3Tuple = [0, 0, 0];
 
 const ENVIRONMENT_PRESETS = [
+  "citrus_orchard",
   "studio",
   "city",
   "dawn",
@@ -63,6 +64,11 @@ const ENVIRONMENT_PRESETS = [
   "lobby",
 ] as const;
 type EnvironmentPreset = (typeof ENVIRONMENT_PRESETS)[number];
+
+/** 커스텀 HDR 파일 경로 매핑 — preset 값이 여기 있으면 drei preset 대신 파일을 직접 로드 */
+const CUSTOM_HDR_FILES: Partial<Record<EnvironmentPreset, string>> = {
+  citrus_orchard: "/main/citrus_orchard_road_puresky_1k.hdr",
+};
 
 /**
  * Rim env 프리셋
@@ -199,17 +205,15 @@ const DEFAULT_CONFIG: SceneConfig = {
   samples: 1,
   resolution: 256,
 
-  // 기본 OFF — 필요 시 옵션 패널에서 ON.
-  envEnabled: false,
-  envPreset: "studio",
-  envIntensity: 0,
+  envEnabled: true,
+  envPreset: "citrus_orchard",
+  envIntensity: 0.80,
   envBackground: false,
   envBackgroundBlurriness: 0,
   envBackgroundIntensity: 0,
   envShowLightformers: true,
 
-  // 검은 엣지 제거용 — 경량 Rim Env (기본 ON, #F8E8FF)
-  rimEnabled: true,
+  rimEnabled: false,
   rimPreset: "flat",
   rimColor: "#F8E8FF",
   rimIntensity: 1.3,
@@ -300,8 +304,48 @@ const SECTIONS: readonly FieldSection[] = [
       { type: "slider", key: "orb2Scale", label: "스케일 배율", min: 0.3, max: 1.6, step: 0.01 },
     ],
   },
-  // 이하 섹션들(Boolean, Rim, Env, Lights)은 기본값으로 확정했으므로 UI 노출 생략.
-  // 값을 다시 만져야 할 땐 DEFAULT_CONFIG 에서 직접 조정.
+  {
+    title: "Boolean Merge (렌즈 합치기)",
+    fields: [
+      {
+        type: "select",
+        key: "orbMerge",
+        label: "Merge Mode",
+        options: ORB_MERGE_MODES,
+      },
+    ],
+  },
+  {
+    title: "Rim Glow (가장자리 글로우 — 경량)",
+    fields: [
+      { type: "toggle", key: "rimEnabled", label: "Rim ON" },
+      { type: "select", key: "rimPreset", label: "Rim 레이아웃", options: RIM_PRESETS },
+      { type: "color", key: "rimColor", label: "Rim 색상" },
+      { type: "slider", key: "rimIntensity", label: "Rim 강도", min: 0, max: 10, step: 0.1 },
+    ],
+  },
+  {
+    title: "HDR 환경 (무거운 배경 · 반짝임 강화)",
+    fields: [
+      { type: "toggle", key: "envEnabled", label: "HDR ENV ON (GPU 부하 큼)" },
+      { type: "select", key: "envPreset", label: "HDR Preset", options: ENVIRONMENT_PRESETS },
+      { type: "slider", key: "envIntensity", label: "ENV 강도", min: 0, max: 5, step: 0.05 },
+      { type: "toggle", key: "envBackground", label: "배경으로 렌더" },
+      { type: "slider", key: "envBackgroundBlurriness", label: "배경 흐림", min: 0, max: 1, step: 0.01 },
+      { type: "slider", key: "envBackgroundIntensity", label: "배경 밝기", min: 0, max: 3, step: 0.05 },
+      { type: "toggle", key: "envShowLightformers", label: "Lightformers ON" },
+    ],
+  },
+  {
+    title: "조명(Lights)",
+    fields: [
+      { type: "slider", key: "ambientIntensity", label: "Ambient", min: 0, max: 5, step: 0.05 },
+      { type: "slider", key: "dirIntensity", label: "Dir 강도", min: 0, max: 10, step: 0.1 },
+      { type: "slider", key: "dirPosX", label: "Dir X", min: -10, max: 10, step: 0.5 },
+      { type: "slider", key: "dirPosY", label: "Dir Y", min: -10, max: 10, step: 0.5 },
+      { type: "slider", key: "dirPosZ", label: "Dir Z", min: -10, max: 10, step: 0.5 },
+    ],
+  },
 ];
 
 /* ---------- 3D 컴포넌트 ---------- */
@@ -575,14 +619,20 @@ interface SceneEnvironmentProps {
 }
 
 /**
- * 배경(HDRI preset) + 커스텀 Lightformers.
+ * 배경(HDRI preset 또는 커스텀 파일) + 커스텀 Lightformers.
  * `envBackground` 가 true 면 HDR 이 장면 배경으로 렌더된다.
+ * CUSTOM_HDR_FILES 에 등록된 preset 은 drei CDN preset 대신 로컬 HDR 파일을 직접 로드한다.
  */
 const SceneEnvironment = ({ config }: SceneEnvironmentProps) => {
+  const customFile = CUSTOM_HDR_FILES[config.envPreset];
+  const envProps = customFile
+    ? { files: customFile }
+    : { preset: config.envPreset as Exclude<EnvironmentPreset, keyof typeof CUSTOM_HDR_FILES> };
+
   return (
     <Environment
       key={config.envPreset}
-      preset={config.envPreset}
+      {...envProps}
       resolution={256}
       environmentIntensity={config.envIntensity}
       background={config.envBackground}
@@ -954,7 +1004,7 @@ const formatSliderValue = (value: number, integer?: boolean) => {
 };
 
 const ConfigLayer = ({ config, onChange, onReset }: ConfigLayerProps) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   const updateNumber = (key: NumKey, value: number) => {
     onChange({ ...config, [key]: value });

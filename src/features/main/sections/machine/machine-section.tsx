@@ -15,6 +15,7 @@ import styles from "./machine-section.module.css";
 import {
   DEFAULT_MODEL_SCENE_CONFIG,
   VISUMAX_800_DEFAULT_CONFIG,
+  CATALYS_DEFAULT_CONFIG,
   type ModelSceneConfig,
 } from "./visumax-model-config";
 import { VisumaxConfigPanel } from "./visumax-config-panel";
@@ -45,19 +46,23 @@ export interface MachineSectionProps {
 export function MachineSection({ messages }: MachineSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const pinRef = useRef<HTMLDivElement>(null);
-  const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [shouldMountModels, setShouldMountModels] = useState(false);
   const reduceMotion = useReducedMotion();
   // 두 GLB 모델의 설정을 개별 관리 — 설정 패널에서 실시간 튜닝.
   //   800 은 디자인 확정값(VISUMAX_800_DEFAULT_CONFIG) 로 시작, 500 은 표준값.
   const [config800, setConfig800] = useState<ModelSceneConfig>(VISUMAX_800_DEFAULT_CONFIG);
   const [config500, setConfig500] = useState<ModelSceneConfig>(DEFAULT_MODEL_SCENE_CONFIG);
+  const [configCatalys, setConfigCatalys] = useState<ModelSceneConfig>(CATALYS_DEFAULT_CONFIG);
   // GLB 로드 완료 → 뒤 이미지 페이드아웃 트리거.
   //   useCallback 으로 레퍼런스 고정 → VisumaxModelScene 내부 메모이제이션(Bounds 재피팅 방지) 유지.
   const [modelLoaded800, setModelLoaded800] = useState(false);
   const [modelLoaded500, setModelLoaded500] = useState(false);
+  const [modelLoadedCatalys, setModelLoadedCatalys] = useState(false);
   const handleModel800Loaded = useCallback(() => setModelLoaded800(true), []);
   const handleModel500Loaded = useCallback(() => setModelLoaded500(true), []);
+  const handleModelCatalysLoaded = useCallback(() => setModelLoadedCatalys(true), []);
 
   // dev 편의: 코드에서 default const 를 수정하면 Fast Refresh 가 모듈을 재평가해
   // 새 레퍼런스의 상수가 들어온다. deps 에 상수를 걸어두면 그 변화에 반응해 state 를
@@ -69,6 +74,9 @@ export function MachineSection({ messages }: MachineSectionProps) {
   useEffect(() => {
     setConfig500(DEFAULT_MODEL_SCENE_CONFIG);
   }, [DEFAULT_MODEL_SCENE_CONFIG]);
+  useEffect(() => {
+    setConfigCatalys(CATALYS_DEFAULT_CONFIG);
+  }, [CATALYS_DEFAULT_CONFIG]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -100,11 +108,17 @@ export function MachineSection({ messages }: MachineSectionProps) {
       const section = sectionRef.current;
       const pinEl = pinRef.current;
       if (!section || !pinEl) return;
+      const segmentCount = 3;
       const progressState = { value: 0 };
       const smoothProgress = gsap.quickTo(progressState, "value", {
         duration: 0.22,
         ease: "power2.out",
-        onUpdate: () => setProgress(progressState.value),
+        onUpdate: () => {
+          progressRef.current = progressState.value;
+          const phase = progressState.value * segmentCount;
+          const next = Math.min(machines.length - 1, Math.max(0, Math.floor(phase)));
+          setActiveIndex((prev) => (prev !== next ? next : prev));
+        },
       });
 
       const pinST = ScrollTrigger.create({
@@ -142,13 +156,20 @@ export function MachineSection({ messages }: MachineSectionProps) {
     { scope: sectionRef },
   );
 
-  const segmentCount = 3;
-  const phase = progress * segmentCount;
-  const activeIndex = Math.min(machines.length - 1, Math.max(0, Math.floor(phase)));
-  const activeMachine = machines[activeIndex];
+  const activeMachine = machines[Math.min(activeIndex, machines.length - 1)];
   const isVisumax800 = activeMachine.nameEn === "VISUMAX 800";
   const isVisumax500 = activeMachine.nameEn === "VISUMAX 500";
   const isCatalysLaser = activeMachine.nameEn === "Catalys laser";
+
+  // 두 모델이 모두 최초 로드된 이후엔 비활성 Canvas 를 언마운트해 GPU 메모리를 절약한다.
+  // 로드 완료 전에는 두 Canvas 를 동시에 마운트해 전환 flash 를 방지하는 기존 전략 유지.
+  const bothLoaded = modelLoaded800 && modelLoaded500 && modelLoadedCatalys;
+  // 한 번 로드된 캔버스는 절대 언마운트하지 않는다.
+  // 언마운트 후 재마운트 시 Bounds가 카메라 fit 애니메이션을 재실행해
+  // 모델이 "다른 곳에서 날아오는" 현상의 원인이 됨.
+  const mount800 = shouldMountModels && (!bothLoaded || isVisumax800 || modelLoaded800);
+  const mount500 = shouldMountModels && (!bothLoaded || isVisumax500 || modelLoaded500);
+  const mountCatalys = shouldMountModels && (!bothLoaded || isCatalysLaser || modelLoadedCatalys);
   const eyebrowLabel = activeMachine.headlineEyebrowLabel ?? messages.eyebrowLabel;
   const titleText = activeMachine.headlineTitle ?? messages.title;
   const [titleLine1 = "", titleLine2 = ""] = titleText.split("\n");
@@ -205,10 +226,10 @@ export function MachineSection({ messages }: MachineSectionProps) {
               <motion.div
                 key={activeMachine.nameEn}
                 className={`${styles.machineInfoBlock} ${isVisumax800 ? styles.machineInfoBlock800 : ""} ${isVisumax500 ? styles.machineInfoBlock500 : ""} ${isCatalysLaser ? styles.machineInfoBlockCatalys : ""}`}
-                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 }}
-                animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-                transition={reduceMotion ? { duration: 0.2 } : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
               >
                 <p
                   className={`${styles.machineBackdropTitle} ${isVisumax800 ? styles.machineBackdropTitle800 : ""} ${isVisumax500 ? styles.machineBackdropTitle500 : ""}`}
@@ -236,10 +257,10 @@ export function MachineSection({ messages }: MachineSectionProps) {
               key={activeMachine.imageSrc}
               className={`${styles.imageWrap} ${isVisumax500 ? styles.imageWrap500 : ""} ${isCatalysLaser ? styles.imageWrapCatalys : ""}`}
               aria-hidden
-              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 18 }}
-              animate={reduceMotion ? { opacity: 1 } : { opacity: 1, x: 0 }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -12 }}
-              transition={reduceMotion ? { duration: 0.2 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
             >
               {/* GLB 씬은 아래 형제로 따로 렌더(상시 마운트) → 여기서는 2D 이미지만.
                *   - GLB 로 대체되는 슬라이드(800/500) 에서는 모델 로드 완료 전까지만 이미지를
@@ -247,7 +268,7 @@ export function MachineSection({ messages }: MachineSectionProps) {
                *     800 첫 진입 시에만 짧게 보이고, 그 이후 전환(800→500)에선 modelLoaded500
                *     가 이미 true 라 flash 가 생기지 않는다.
                *   - Catalys 는 GLB 없음 → 그냥 이미지 노출. */}
-              {(isVisumax800 && modelLoaded800) || (isVisumax500 && modelLoaded500) ? null : (
+              {(isVisumax800 && modelLoaded800) || (isVisumax500 && modelLoaded500) || (isCatalysLaser && modelLoadedCatalys) ? null : (
                 <Image
                   src={activeMachine.imageSrc ?? ""}
                   alt=""
@@ -281,19 +302,15 @@ export function MachineSection({ messages }: MachineSectionProps) {
             className={`${styles.imageWrap}`}
             aria-hidden
             initial={false}
-            animate={
-              reduceMotion
-                ? { opacity: isVisumax800 ? 1 : 0 }
-                : { opacity: isVisumax800 ? 1 : 0, x: isVisumax800 ? 0 : -12 }
-            }
-            transition={reduceMotion ? { duration: 0.2 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            animate={{ opacity: isVisumax800 ? 1 : 0 }}
+            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
             style={{ pointerEvents: isVisumax800 ? "auto" : "none" }}
           >
             <div
               className={`${styles.modelOverlay} ${isVisumax800 ? "" : styles.modelOverlayInactive}`}
               style={{ ["--overlay-scale" as string]: config800.overlayScale }}
             >
-              {shouldMountModels ? (
+              {mount800 ? (
                 <VisumaxModelScene
                   modelUrl="/main/visumax800.glb"
                   config={config800}
@@ -306,23 +323,40 @@ export function MachineSection({ messages }: MachineSectionProps) {
             className={`${styles.imageWrap} ${styles.imageWrap500}`}
             aria-hidden
             initial={false}
-            animate={
-              reduceMotion
-                ? { opacity: isVisumax500 ? 1 : 0 }
-                : { opacity: isVisumax500 ? 1 : 0, x: isVisumax500 ? 0 : -12 }
-            }
-            transition={reduceMotion ? { duration: 0.2 } : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            animate={{ opacity: isVisumax500 ? 1 : 0 }}
+            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
             style={{ pointerEvents: isVisumax500 ? "auto" : "none" }}
           >
             <div
               className={`${styles.modelOverlay} ${isVisumax500 ? "" : styles.modelOverlayInactive}`}
               style={{ ["--overlay-scale" as string]: config500.overlayScale }}
             >
-              {shouldMountModels ? (
+              {mount500 ? (
                 <VisumaxModelScene
                   modelUrl="/main/visumax500.glb"
                   config={config500}
                   onLoaded={handleModel500Loaded}
+                />
+              ) : null}
+            </div>
+          </motion.div>
+          <motion.div
+            className={`${styles.imageWrap} ${styles.imageWrapCatalys}`}
+            aria-hidden
+            initial={false}
+            animate={{ opacity: isCatalysLaser ? 1 : 0 }}
+            transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+            style={{ pointerEvents: isCatalysLaser ? "auto" : "none" }}
+          >
+            <div
+              className={`${styles.modelOverlay} ${isCatalysLaser ? "" : styles.modelOverlayInactive}`}
+              style={{ ["--overlay-scale" as string]: configCatalys.overlayScale }}
+            >
+              {mountCatalys ? (
+                <VisumaxModelScene
+                  modelUrl="/main/catalyslaser.glb"
+                  config={configCatalys}
+                  onLoaded={handleModelCatalysLoaded}
                 />
               ) : null}
             </div>
@@ -336,10 +370,13 @@ export function MachineSection({ messages }: MachineSectionProps) {
         <VisumaxConfigPanel
           config800={config800}
           config500={config500}
+          configCatalys={configCatalys}
           onChange800={setConfig800}
           onChange500={setConfig500}
+          onChangeCatalys={setConfigCatalys}
           onReset800={() => setConfig800(VISUMAX_800_DEFAULT_CONFIG)}
           onReset500={() => setConfig500(DEFAULT_MODEL_SCENE_CONFIG)}
+          onResetCatalys={() => setConfigCatalys(CATALYS_DEFAULT_CONFIG)}
         />
       ) : null}
     </section>

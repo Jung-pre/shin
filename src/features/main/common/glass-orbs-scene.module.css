@@ -20,12 +20,16 @@
   position: fixed;
   top: 7rem;
   right: 1.25rem;
+  bottom: 1rem;
   z-index: 30;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.5rem;
   pointer-events: auto;
+  /* 뷰포트 높이를 벗어나지 않게 고정 — 팝업이 이 안에서 스크롤됨 */
+  max-height: calc(100vh - 8rem);
+  overflow: hidden;
 }
 
 .layerToggle {
@@ -38,11 +42,14 @@
   font-size: 0.875rem;
   line-height: 1;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .layerPopup {
   width: 19rem;
-  max-height: calc(100vh - 9rem);
+  /* flex: 1로 남은 세로 공간을 모두 차지하고, min-height: 0으로 flex shrink 허용 */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   border-radius: 0;
   border: 1px solid rgba(255, 255, 255, 0.3);

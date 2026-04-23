@@ -5,15 +5,15 @@
   right: 0;
   top: 0;
   z-index: 20;
-  background: transparent;
   padding-inline: 8.12rem;
-  transition: background-color 240ms ease;
-}
-
-/* 스크롤 시 가독성 확보용 어두운 레이어.
- * backdrop-filter(blur) 은 상시 리페인트 트리거라 제거 → 알파만 살짝 올려 가독성 확보. */
-.headerScrolled {
-  background-color: rgba(0, 0, 0, 0.45);
+  background: #ffffff1a;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  /* backdrop-filter 는 GPU 합성 레이어 위에서만 동작.
+   * translateZ(0) 으로 헤더를 독립 레이어로 승격시켜 블러가 반드시 적용되게 한다.
+   * WebGL 캔버스 등 복잡한 합성 트리에서도 안전하게 동작. */
+  transform: translateZ(0);
+  isolation: isolate;
 }
 
 .nav {

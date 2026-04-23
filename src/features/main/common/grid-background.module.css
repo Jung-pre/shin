@@ -43,7 +43,8 @@
 }
 
 .glowLayer {
-  opacity: 0.84;
+  opacity: 0.9;
+  transition: opacity 0.35s ease;
 }
 
 .glowCell {
@@ -60,21 +61,22 @@
   }
 
   38% {
-    opacity: 0.03;
+    opacity: 0.06;
   }
 
   50% {
-    opacity: 0.2;
+    opacity: 0.38;
   }
 
   62% {
-    opacity: 0.032;
+    opacity: 0.07;
   }
 }
 
-/* 스크롤 중 반짝임 정지 — data-scrolling 속성이 붙는 동안 CSS 애니메이션을 일시정지 */
-.background[data-scrolling] .glowCell {
-  animation-play-state: paused;
+
+/* 스크롤 중 반짝임 부드럽게 페이드아웃 */
+.background[data-scrolling] .glowLayer {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

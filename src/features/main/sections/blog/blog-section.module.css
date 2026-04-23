@@ -307,8 +307,6 @@
 
 .postThumbWrap {
   position: relative;
-  border-radius: 1.5rem;
-  overflow: hidden;
 }
 
 .postThumb {
@@ -320,11 +318,13 @@
 
 .postThumbHover {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: -1px;
+  right: -1px;
   width: 3.63881rem;
   height: 3.6135rem;
-  object-fit: contain;
+  object-fit: cover;
+  border-radius: 0 1.5rem 0 0;
+  overflow: hidden;
   pointer-events: none;
 }
 

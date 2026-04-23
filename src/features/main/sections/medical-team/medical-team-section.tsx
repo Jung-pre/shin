@@ -26,8 +26,8 @@ export function MedicalTeamSection({ messages }: MedicalTeamSectionProps) {
   const copyRef = useRef<HTMLDivElement>(null);
   const imageFrameRef = useRef<HTMLDivElement>(null);
   const [isLayerOpen, setIsLayerOpen] = useState(false);
-  const [logoOffsetX, setLogoOffsetX] = useState(-14);
-  const [logoOffsetY, setLogoOffsetY] = useState(16);
+  const [logoOffsetX, setLogoOffsetX] = useState(28);
+  const [logoOffsetY, setLogoOffsetY] = useState(2);
 
   useLayoutEffect(() => {
     const section = sectionRef.current;

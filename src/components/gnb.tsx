@@ -1,17 +1,10 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import clsx from "clsx";
 import type { Locale } from "@/shared/config/i18n";
 import styles from "./gnb.module.css";
 
 interface GnbProps {
   locale: Locale;
 }
-
-/** 이 픽셀 이상 스크롤되면 GNB 배경을 어둡게 깔아 가독성 확보. */
-const GNB_SCROLLED_THRESHOLD = 8;
 
 interface NavItem {
   label: string;
@@ -46,21 +39,9 @@ const accountLabel: Record<Locale, string> = {
 
 export const Gnb = ({ locale }: GnbProps) => {
   const items = navItems[locale];
-  const [isScrolled, setIsScrolled] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    // passive scroll → 한 번 스타일 전환이라 rAF 스로틀 불필요. 임계값 기반 토글만.
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > GNB_SCROLLED_THRESHOLD);
-    };
-    handleScroll();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   return (
-    <header className={clsx(styles.header, isScrolled && styles.headerScrolled)}>
+    <header className={styles.header}>
       <nav className={styles.nav} aria-label="Global navigation">
         <Link href={`/${locale}`} className={styles.logo} prefetch={false}>
           <svg xmlns="http://www.w3.org/2000/svg" width="53" height="33" viewBox="0 0 53 33" fill="none">
