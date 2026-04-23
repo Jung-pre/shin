@@ -30,12 +30,28 @@
 .glassLayer {
   position: fixed;
   left: 0;
-  top: 0;
+  top: 50%;
   width: 100%;
-  height: 100vh;
-  height: 100dvh;
+  height: 40rem;
+  transform: translateY(-50%);
   z-index: 3;
   pointer-events: none;
+  overflow: hidden;
+  /* 요청: 40rem 고정 + 현재 마스크 로직 유지 */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent calc(50% - 20rem),
+    #000 calc(50% - 20rem),
+    #000 calc(50% + 20rem),
+    transparent calc(50% + 20rem)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent calc(50% - 20rem),
+    #000 calc(50% - 20rem),
+    #000 calc(50% + 20rem),
+    transparent calc(50% + 20rem)
+  );
   will-change: opacity;
   /* 스크롤 연동이 아닌 임계점 토글 — 전환감 있는 페이드를 위해 280ms 로 연장. */
   transition: opacity 280ms ease;
@@ -45,8 +61,13 @@
  * 오브 위치(x 오프셋) 는 처음부터 정확히 고정되어야 해서 transform(scale) 은 쓰지 않고
  * opacity + filter(blur) 만으로 페이드 인 한다. */
 .glassIntroWrap {
+  position: absolute;
+  left: 0;
+  top: 50%;
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
+  transform: translateY(-50%);
   will-change: opacity, filter;
 }
 

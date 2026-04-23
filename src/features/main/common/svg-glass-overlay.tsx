@@ -64,6 +64,8 @@ const DEFAULT_CROSSFADE: CrossfadeConfig = {
   triggerVh: 0.25,
   bottomFadeVh: 0.25,
 };
+/** 역방향(아래→위) 복귀 시, 이 시간(ms) 동안 스크롤 입력이 없으면 "정지"로 간주 */
+const REVERSE_HANDOFF_IDLE_MS = 140;
 
 /**
  * dev 튜닝용 렌즈 옵션 패널 노출 스위치.
@@ -280,6 +282,11 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
   useEffect(() => {
     glassReadyRef.current = glassReady;
   }, [glassReady]);
+  // 역방향 복귀 핸드오프 상태 추적
+  const prevScrollYRef = useRef(0);
+  const lastScrollTsRef = useRef(0);
+  const wasBelowTriggerRef = useRef(false);
+  const reverseHandoffPendingRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -297,6 +304,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       const vh = window.innerHeight || 1;
       const { triggerVh, bottomFadeVh } = crossfadeRef.current;
       const y = window.scrollY;
+      const now = performance.now();
       const triggerPx = vh * triggerVh;
       const bottomPx = Math.max(1, vh * bottomFadeVh);
 
@@ -310,11 +318,34 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
 
       const isAtTop = y < triggerPx;
       const isGlassReady = glassReadyRef.current;
-      // 상단 구간에서 3D가 아직 준비되지 않았으면 SVG를 유지해 공백 프레임을 숨긴다.
-      const glassOpacity = isAtTop ? (isGlassReady ? 1 : 0) : 0;
+      const delta = y - prevScrollYRef.current;
+      if (Math.abs(delta) > 0.3) {
+        lastScrollTsRef.current = now;
+      }
+      prevScrollYRef.current = y;
+      const isScrollIdle = now - lastScrollTsRef.current > REVERSE_HANDOFF_IDLE_MS;
+
+      if (!isAtTop) {
+        wasBelowTriggerRef.current = true;
+        reverseHandoffPendingRef.current = true;
+      }
+
+      // 역방향으로 top 트리거에 재진입했을 때만 "준비+정지"를 요구
+      const waitingReverseHandoff =
+        isAtTop && wasBelowTriggerRef.current && reverseHandoffPendingRef.current;
+      const canShowGlassAtTop = waitingReverseHandoff ? isGlassReady && isScrollIdle : isGlassReady;
+
+      // 상단 구간에서 3D가 아직 준비되지 않았거나(또는 역방향에서 스크롤 미정지) SVG를 유지.
+      const glassOpacity = isAtTop ? (canShowGlassAtTop ? 1 : 0) : 0;
       // SVG 는 트리거를 넘으면 1 을 기본으로 하되, 하단 근접 시 bottomFactor 로 감쇠.
-      // 단, 상단 구간에서도 3D 준비 전에는 1 유지.
-      const svgOpacity = isAtTop ? (isGlassReady ? 0 : 1) : bottomFactor;
+      // 단, 상단 구간에서도 3D 준비/정지 조건 전에는 1 유지.
+      const svgOpacity = isAtTop ? (canShowGlassAtTop ? 0 : 1) : bottomFactor;
+
+      if (isAtTop && canShowGlassAtTop) {
+        // 핸드오프 완료: 이후 상단 미세 스크롤엔 대기 조건을 다시 강제하지 않음
+        reverseHandoffPendingRef.current = false;
+        wasBelowTriggerRef.current = false;
+      }
 
       return { glassOpacity, svgOpacity, isAtTop };
     };
@@ -356,6 +387,19 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       }
     };
 
+    // 역방향 핸드오프는 "스크롤 정지" 조건이 필요하므로,
+    // 마지막 스크롤 이후 idle 시점에 apply()를 한 번 더 호출해 전환 누락을 방지한다.
+    let idleApplyTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleIdleApply = () => {
+      if (idleApplyTimer) {
+        clearTimeout(idleApplyTimer);
+      }
+      idleApplyTimer = setTimeout(() => {
+        requestAnimationFrame(apply);
+        idleApplyTimer = null;
+      }, REVERSE_HANDOFF_IDLE_MS + 16);
+    };
+
     // fade 완료 후 합성 레이어에서 제외 — compositor 비용 제거용.
     //   · opacity transition 이 끝났을 때 opacity 가 0 이면 visibility:hidden 으로 내림.
     //   · 다시 opacity>0 으로 올라가는 경로는 apply() 에서 미리 visible 로 돌려놓는다.
@@ -371,13 +415,20 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     glassTarget?.addEventListener("transitionend", handleGlassTransitionEnd);
 
     const rafId = requestAnimationFrame(apply);
-    window.addEventListener("scroll", apply, { passive: true });
+    const handleScroll = () => {
+      apply();
+      scheduleIdleApply();
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", apply);
     return () => {
       cancelAnimationFrame(rafId);
-      window.removeEventListener("scroll", apply);
+      window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", apply);
       glassTarget?.removeEventListener("transitionend", handleGlassTransitionEnd);
+      if (idleApplyTimer) {
+        clearTimeout(idleApplyTimer);
+      }
     };
   }, [glassLayerRef]);
 
@@ -386,6 +437,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     if (typeof window === "undefined") return;
     const vh = window.innerHeight || 1;
     const y = window.scrollY;
+    const now = performance.now();
     const triggerPx = vh * crossfade.triggerVh;
     const bottomPx = Math.max(1, vh * crossfade.bottomFadeVh);
     const docHeight = Math.max(
@@ -395,8 +447,28 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     const remaining = docHeight - (y + vh);
     const bottomFactor = Math.min(1, Math.max(0, remaining / bottomPx));
     const isAtTop = y < triggerPx;
-    const glassOpacity = isAtTop ? (glassReady ? 1 : 0) : 0;
-    const svgOpacity = isAtTop ? (glassReady ? 0 : 1) : bottomFactor;
+    const delta = y - prevScrollYRef.current;
+    if (Math.abs(delta) > 0.3) {
+      lastScrollTsRef.current = now;
+    }
+    prevScrollYRef.current = y;
+    const isScrollIdle = now - lastScrollTsRef.current > REVERSE_HANDOFF_IDLE_MS;
+
+    if (!isAtTop) {
+      wasBelowTriggerRef.current = true;
+      reverseHandoffPendingRef.current = true;
+    }
+
+    const waitingReverseHandoff =
+      isAtTop && wasBelowTriggerRef.current && reverseHandoffPendingRef.current;
+    const canShowGlassAtTop = waitingReverseHandoff ? glassReady && isScrollIdle : glassReady;
+    const glassOpacity = isAtTop ? (canShowGlassAtTop ? 1 : 0) : 0;
+    const svgOpacity = isAtTop ? (canShowGlassAtTop ? 0 : 1) : bottomFactor;
+
+    if (isAtTop && canShowGlassAtTop) {
+      reverseHandoffPendingRef.current = false;
+      wasBelowTriggerRef.current = false;
+    }
 
     const svgTarget = overlayRef.current;
     const glassTarget = glassLayerRef?.current ?? null;
