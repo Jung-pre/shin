@@ -4,6 +4,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -11,9 +12,10 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import gsap from "gsap";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, MeshTransmissionMaterial } from "@react-three/drei";
-import { SphereGeometry, type Group as ThreeGroup, type Texture } from "three";
+import { SphereGeometry, type Group as ThreeGroup, type Mesh as ThreeMesh, type Texture } from "three";
 import {
   ADDITION,
   Brush,
@@ -641,6 +643,7 @@ interface LensContentProps {
   config: SceneConfig;
   journeyProgressRef?: MutableRefObject<number>;
   mouseTiltHoldDocYRef?: RefObject<number | null>;
+  introMotionRef?: RefObject<IntroMotion>;
 }
 
 const LensContent = ({
@@ -649,6 +652,7 @@ const LensContent = ({
   config,
   journeyProgressRef,
   mouseTiltHoldDocYRef,
+  introMotionRef,
 }: LensContentProps) => {
   const { viewport, size, invalidate } = useThree();
   const rootFontSize = useRootFontSize();
@@ -692,21 +696,45 @@ const LensContent = ({
     ? [-config.orb2OffsetX / 2, -config.orb2OffsetY / 2, -config.orb2OffsetZ / 2]
     : [0, 0, 0];
 
-  /**
-   * orb1 은 pairCenteringOffset 로 이미 대칭 배치된 (0,0,0) 기준으로,
-   * 사용자 추가 오프셋(orb1Offset*)을 덧씌워 독립 이동.
-   */
-  const orb1Position: Vector3Tuple = [
-    config.orb1OffsetX,
-    config.orb1OffsetY,
-    config.orb1OffsetZ,
-  ];
+  const orb1PivotRef = useRef<ThreeGroup>(null);
+  const orb2PivotRef = useRef<ThreeGroup>(null);
 
-  const orb2Position: Vector3Tuple = [
-    config.orb2OffsetX,
-    config.orb2OffsetY,
-    config.orb2OffsetZ,
-  ];
+  useFrame(() => {
+    if (config.orbMerge !== "separate") return;
+    const intro = introMotionRef?.current;
+    const active = intro?.active ?? false;
+
+    const g1 = orb1PivotRef.current;
+    if (g1) {
+      g1.position.set(
+        active ? intro!.orb1X : config.orb1OffsetX,
+        config.orb1OffsetY,
+        config.orb1OffsetZ,
+      );
+    }
+
+    const g2 = orb2PivotRef.current;
+    if (g2) {
+      g2.position.set(
+        active ? intro!.orb2X : config.orb2OffsetX,
+        config.orb2OffsetY,
+        config.orb2OffsetZ,
+      );
+      const opacity = active ? intro!.orb2Opacity : 1;
+      g2.traverse((child) => {
+        if ((child as ThreeMesh).isMesh) {
+          const mat = (child as ThreeMesh).material;
+          const m = Array.isArray(mat) ? mat[0] : mat;
+          if (m && "opacity" in m) {
+            (m as { opacity: number; transparent: boolean }).opacity = opacity;
+            (m as { opacity: number; transparent: boolean }).transparent = true;
+          }
+        }
+      });
+    }
+
+    if (active) invalidate();
+  });
 
   const journeyMaxRad = config.journeyEnabled
     ? (config.journeyMaxYDeg * Math.PI) / 180
@@ -753,14 +781,13 @@ const LensContent = ({
     >
       <group scale={lensScale}>
         <group position={pairCenteringOffset}>
-          <GlassOrb buffer={buffer} config={config} position={orb1Position} />
+          <group ref={orb1PivotRef}>
+            <GlassOrb buffer={buffer} config={config} />
+          </group>
           {config.orb2Enabled ? (
-            <GlassOrb
-              buffer={buffer}
-              config={config}
-              position={orb2Position}
-              scaleMultiplier={config.orb2Scale}
-            />
+            <group ref={orb2PivotRef}>
+              <GlassOrb buffer={buffer} config={config} scaleMultiplier={config.orb2Scale} />
+            </group>
           ) : null}
         </group>
       </group>
@@ -831,6 +858,7 @@ interface GlassOrbsContentProps {
   /** 히어로~RotatingSlideSection 끝까지 0~1, Lens Y 여정 */
   journeyProgressRef?: MutableRefObject<number>;
   mouseTiltHoldDocYRef?: RefObject<number | null>;
+  introMotionRef?: RefObject<IntroMotion>;
 }
 
 function GlassOrbsContent({
@@ -843,6 +871,7 @@ function GlassOrbsContent({
   envSettled,
   journeyProgressRef,
   mouseTiltHoldDocYRef,
+  introMotionRef,
 }: GlassOrbsContentProps) {
   if (!bufferTexture || !isBufferReady) return null;
 
@@ -874,6 +903,7 @@ function GlassOrbsContent({
         config={config}
         journeyProgressRef={journeyProgressRef}
         mouseTiltHoldDocYRef={mouseTiltHoldDocYRef}
+        introMotionRef={introMotionRef}
       />
     </>
   );
@@ -963,6 +993,30 @@ const DEFAULT_SOURCE_IMAGE = "/main/img_hero.webp";
  */
 const SHOW_GLASS_SCENE_CONFIG_PANEL = false;
 
+/* ---------- 히어로 인트로 애니메이션 ---------- */
+
+interface IntroMotion {
+  active: boolean;
+  /** orb1 pivot X — 최종값은 config.orb1OffsetX */
+  orb1X: number;
+  /** orb2 pivot X — 최종값은 config.orb2OffsetX */
+  orb2X: number;
+  /** orb2 투명도 — 0: 숨김, 1: 보임 */
+  orb2Opacity: number;
+}
+
+/** 중앙 기준 양쪽 시작 거리 (로컬 좌표) */
+const HERO_INTRO_START_DISTANCE = 10;
+const HERO_INTRO_DELAY_SEC = 1.05;
+/** 양쪽 → 중앙 모이기 */
+const HERO_INTRO_CONVERGE_SEC = 1.2;
+const HERO_INTRO_CONVERGE_EASE = "power3.out" as const;
+/** 중앙 대기 */
+const HERO_INTRO_PAUSE_SEC = 0;
+/** 중앙 → 각자 자리 */
+const HERO_INTRO_SEPARATE_SEC = 1.0;
+const HERO_INTRO_SEPARATE_EASE = "power2.inOut" as const;
+
 export const GlassOrbsScene = ({
   sourceImageUrl = DEFAULT_SOURCE_IMAGE,
   targetRef,
@@ -972,10 +1026,18 @@ export const GlassOrbsScene = ({
   onFirstFrameReady,
 }: GlassOrbsSceneProps) => {
   const [config, setConfig] = useState<SceneConfig>(DEFAULT_CONFIG);
+  const heroIntroCompletedRef = useRef(false);
+  const [heroCanvasStable, setHeroCanvasStable] = useState(false);
+  const isHeroSource = sourceImageUrl.includes("img_hero");
 
-  // R3F invalidate 브리지 — InvalidateBridge 컴포넌트가 ref.current 를
-  // Canvas 의 invalidate 함수로 채워준다. 텍스처 훅은 이 ref 를 통해
-  // React state 우회하고 바로 다음 프레임 렌더를 예약.
+  const midX = (config.orb1OffsetX + config.orb2OffsetX) / 2;
+  const introMotionRef = useRef<IntroMotion>({
+    active: false,
+    orb1X: config.orb1OffsetX,
+    orb2X: config.orb2OffsetX,
+    orb2Opacity: 1,
+  });
+
   const invalidateRef = useRef<(() => void) | null>(null);
   const invalidateCallback = useCallback(() => {
     invalidateRef.current?.();
@@ -1013,7 +1075,86 @@ export const GlassOrbsScene = ({
     setEnvReady(true);
   }, []);
 
+  const handleFirstFrameReady = useCallback(() => {
+    if (isHeroSource) setHeroCanvasStable(true);
+    onFirstFrameReady?.();
+  }, [onFirstFrameReady, isHeroSource]);
+
   const resetConfig = useCallback(() => setConfig(DEFAULT_CONFIG), []);
+
+  /** 비히어로 → 인트로 리셋 */
+  useEffect(() => {
+    if (isHeroSource) return;
+    heroIntroCompletedRef.current = false;
+    setHeroCanvasStable(false);
+    const m = introMotionRef.current;
+    m.active = false;
+    m.orb1X = config.orb1OffsetX;
+    m.orb2X = config.orb2OffsetX;
+    m.orb2Opacity = 1;
+    requestAnimationFrame(() => invalidateCallback());
+  }, [invalidateCallback, isHeroSource, config.orb1OffsetX, config.orb2OffsetX]);
+
+  /** 히어로: 첫 페인트부터 인트로 시작 자세 고정 (깜빡임 방지) */
+  useLayoutEffect(() => {
+    if (!isHeroSource || heroIntroCompletedRef.current) return;
+    const m = introMotionRef.current;
+    m.active = true;
+    m.orb1X = midX - HERO_INTRO_START_DISTANCE;
+    m.orb2X = midX + HERO_INTRO_START_DISTANCE;
+    m.orb2Opacity = 0;
+    requestAnimationFrame(() => invalidateCallback());
+  }, [invalidateCallback, isHeroSource, midX]);
+
+  /** 모든 준비 완료 → GSAP 인트로 실행 */
+  useEffect(() => {
+    if (!isHeroSource || !isSourceReady || !envSettled || !heroCanvasStable || heroIntroCompletedRef.current) {
+      return;
+    }
+    const m = introMotionRef.current;
+    let tl: gsap.core.Timeline | null = null;
+    let cancelled = false;
+
+    const rafId = requestAnimationFrame(() => {
+      if (cancelled || heroIntroCompletedRef.current) return;
+
+      m.active = true;
+      m.orb1X = midX - HERO_INTRO_START_DISTANCE;
+      m.orb2X = midX + HERO_INTRO_START_DISTANCE;
+      m.orb2Opacity = 0;
+      invalidateCallback();
+
+      tl = gsap.timeline({ delay: HERO_INTRO_DELAY_SEC, onUpdate: invalidateCallback });
+      tl
+        .to(m, { orb1X: midX, duration: HERO_INTRO_CONVERGE_SEC, ease: HERO_INTRO_CONVERGE_EASE }, 0)
+        .to(m, { orb2X: midX, duration: HERO_INTRO_CONVERGE_SEC, ease: HERO_INTRO_CONVERGE_EASE }, 0)
+        .set(m, { orb2Opacity: 1 })
+        .addLabel("separate", `+=${HERO_INTRO_PAUSE_SEC}`)
+        .to(m, { orb1X: config.orb1OffsetX, duration: HERO_INTRO_SEPARATE_SEC, ease: HERO_INTRO_SEPARATE_EASE }, "separate")
+        .to(m, { orb2X: config.orb2OffsetX, duration: HERO_INTRO_SEPARATE_SEC, ease: HERO_INTRO_SEPARATE_EASE }, "separate")
+        .eventCallback("onComplete", () => {
+          heroIntroCompletedRef.current = true;
+          m.active = false;
+          m.orb1X = config.orb1OffsetX;
+          m.orb2X = config.orb2OffsetX;
+          m.orb2Opacity = 1;
+          invalidateCallback();
+        });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      tl?.kill();
+      if (!heroIntroCompletedRef.current) {
+        m.active = true;
+        m.orb1X = midX - HERO_INTRO_START_DISTANCE;
+        m.orb2X = midX + HERO_INTRO_START_DISTANCE;
+        m.orb2Opacity = 0;
+        invalidateCallback();
+      }
+    };
+  }, [envSettled, heroCanvasStable, invalidateCallback, isHeroSource, isSourceReady, midX, config.orb1OffsetX, config.orb2OffsetX]);
 
   return (
     <>
@@ -1027,15 +1168,17 @@ export const GlassOrbsScene = ({
         >
           <InvalidateBridge bridgeRef={invalidateRef} />
           <GlassOrbsContent
+            key={sourceImageUrl}
             bufferTexture={bufferTexture}
             bufferVersion={bufferVersion}
             isBufferReady={isSourceReady}
             config={config}
-            onFirstFrameReady={onFirstFrameReady}
+            onFirstFrameReady={handleFirstFrameReady}
             onEnvReady={handleEnvReady}
             envSettled={envSettled}
             journeyProgressRef={journeyProgressRef}
             mouseTiltHoldDocYRef={mouseTiltHoldDocYRef}
+            introMotionRef={introMotionRef}
           />
         </Canvas>
       </div>

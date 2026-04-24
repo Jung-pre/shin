@@ -42,6 +42,26 @@ export interface RotatingSlideTuning {
   vignetteBgG: number;
   /** 딤에 사용할 배경색 B (0~255) */
   vignetteBgB: number;
+  /** 아크릴 프레임 강도 (0~2) */
+  waterFrameStrength: number;
+  /** 아크릴 프레임 두께 (uv 공간) */
+  waterFrameThickness: number;
+  /** 프레임 굴절 왜곡 강도 */
+  waterDistort: number;
+  /** 프레임 색수차 강도 */
+  waterChromaticAberration: number;
+  /** 프레임 광택 하이라이트 강도 */
+  waterFrameShine: number;
+  /** 카드 내부 미세 굴절 강도 */
+  waterInnerDistort: number;
+  /** 아크릴 틴트 R (0~255) */
+  waterTintR: number;
+  /** 아크릴 틴트 G (0~255) */
+  waterTintG: number;
+  /** 아크릴 틴트 B (0~255) */
+  waterTintB: number;
+  /** 아크릴 틴트 혼합 강도 (0~1) */
+  waterTintMix: number;
 }
 
 export const DEFAULT_TUNING: RotatingSlideTuning = {
@@ -57,15 +77,25 @@ export const DEFAULT_TUNING: RotatingSlideTuning = {
   cylinderTiltDeg: 0,
   cardYStep: -0.96,
   /** 캔버스 edge mask(%) — 과하면 중앙만 슬라이드가 보이고 가장자리는 뒤 배경(밝을수록 하얗게) */
-  vignetteWidth: 16,
-  vignetteHeight: 12,
+  vignetteWidth: 29,
+  vignetteHeight: 25.5,
   vignetteOpacity: 1,
   vignetteBgR: 255,
   vignetteBgG: 255,
   vignetteBgB: 255,
+  waterFrameStrength: 1.7,
+  waterFrameThickness: 0.24,
+  waterDistort: 0.014,
+  waterChromaticAberration: 0.003,
+  waterFrameShine: 1.8,
+  waterInnerDistort: 0.004,
+  waterTintR: 236,
+  waterTintG: 244,
+  waterTintB: 255,
+  waterTintMix: 0.28,
 };
 
-const STORAGE_KEY = "rotating-slide-tuning-v2";
+const STORAGE_KEY = "rotating-slide-tuning-v5";
 
 /**
  * localStorage 에서 저장값 로드. 스키마 mismatch · parse 에러는 기본값으로 fallback.
@@ -76,8 +106,20 @@ function loadFromStorage(): RotatingSlideTuning {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_TUNING;
     const parsed = JSON.parse(raw) as Partial<RotatingSlideTuning>;
-    // 누락 키는 기본값으로 보충.
-    return { ...DEFAULT_TUNING, ...parsed };
+    const merged = { ...DEFAULT_TUNING, ...parsed };
+    const normalized = {} as RotatingSlideTuning;
+
+    // 저장값이 스키마 범위를 벗어나도 렌더가 망가지지 않도록 안전 보정.
+    for (const key of Object.keys(DEFAULT_TUNING) as (keyof RotatingSlideTuning)[]) {
+      const range = RANGES[key];
+      const rawValue = Number(merged[key]);
+      const fallback = DEFAULT_TUNING[key];
+      const finiteValue = Number.isFinite(rawValue) ? rawValue : fallback;
+      const clamped = Math.min(range.max, Math.max(range.min, finiteValue));
+      normalized[key] = clamped as RotatingSlideTuning[typeof key];
+    }
+
+    return normalized;
   } catch {
     return DEFAULT_TUNING;
   }
@@ -147,6 +189,16 @@ const RANGES: Record<keyof RotatingSlideTuning, Range> = {
   vignetteBgR:     { min: 0,    max: 255,  step: 1,    decimals: 0 },
   vignetteBgG:     { min: 0,    max: 255,  step: 1,    decimals: 0 },
   vignetteBgB:     { min: 0,    max: 255,  step: 1,    decimals: 0 },
+  waterFrameStrength:          { min: 0,     max: 2,      step: 0.01,  decimals: 2 },
+  waterFrameThickness:         { min: 0.02,  max: 0.45,   step: 0.01,  decimals: 2 },
+  waterDistort:                { min: 0,     max: 0.08,   step: 0.001, decimals: 3 },
+  waterChromaticAberration:    { min: 0,     max: 0.03,   step: 0.0005, decimals: 4 },
+  waterFrameShine:             { min: 0,     max: 2,      step: 0.02,  decimals: 2 },
+  waterInnerDistort:           { min: 0,     max: 0.04,   step: 0.001, decimals: 3 },
+  waterTintR:                  { min: 0,     max: 255,    step: 1,     decimals: 0 },
+  waterTintG:                  { min: 0,     max: 255,    step: 1,     decimals: 0 },
+  waterTintB:                  { min: 0,     max: 255,    step: 1,     decimals: 0 },
+  waterTintMix:                { min: 0,     max: 1,      step: 0.01,  decimals: 2 },
 };
 
 const LABELS: Record<keyof RotatingSlideTuning, string> = {
@@ -167,6 +219,16 @@ const LABELS: Record<keyof RotatingSlideTuning, string> = {
   vignetteBgR:     "배경색 R",
   vignetteBgG:     "배경색 G",
   vignetteBgB:     "배경색 B",
+  waterFrameStrength: "아크릴 강도",
+  waterFrameThickness: "아크릴 두께",
+  waterDistort: "굴절 왜곡",
+  waterChromaticAberration: "프레임 색수차",
+  waterFrameShine: "글로시 하이라이트",
+  waterInnerDistort: "내부 굴절",
+  waterTintR: "아크릴 틴트 R",
+  waterTintG: "아크릴 틴트 G",
+  waterTintB: "아크릴 틴트 B",
+  waterTintMix: "틴트 혼합",
 };
 
 const GROUPS: { title: string; keys: (keyof RotatingSlideTuning)[] }[] = [
@@ -290,6 +352,13 @@ export function RotatingSlideTuningPanel({
     }
   }, [tuning]);
 
+  const handleSliderInput = useCallback(
+    (key: keyof RotatingSlideTuning, raw: string) => {
+      onChange(key, Number.parseFloat(raw));
+    },
+    [onChange],
+  );
+
   const style: React.CSSProperties | undefined = position
     ? { top: position.y, left: position.x, right: "auto" }
     : undefined;
@@ -365,9 +434,8 @@ export function RotatingSlideTuningPanel({
                       max={range.max}
                       step={range.step}
                       value={value}
-                      onChange={(e) =>
-                        onChange(key, Number.parseFloat(e.target.value))
-                      }
+                      onInput={(e) => handleSliderInput(key, e.currentTarget.value)}
+                      onChange={(e) => handleSliderInput(key, e.currentTarget.value)}
                     />
                   </div>
                 );

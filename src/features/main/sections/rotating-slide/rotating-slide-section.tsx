@@ -228,6 +228,7 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
             sideDim={tuning.sideDim}
             cylinderTiltDeg={tuning.cylinderTiltDeg}
             cardYStep={tuning.cardYStep}
+            realtimeTuning={tunerVisible}
           />
         </div>
 

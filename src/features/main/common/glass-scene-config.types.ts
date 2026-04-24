@@ -112,12 +112,12 @@ export const DEFAULT_CONFIG: SceneConfig = {
   orbScaleZ: 0.3,
   maxDiameterRem: 31.1,
 
-  orb1OffsetX: 0,
+  orb1OffsetX: 0.1,
   orb1OffsetY: 0,
   orb1OffsetZ: 0,
 
   orb2Enabled: true,
-  orb2OffsetX: 2.15,
+  orb2OffsetX: 3.3,
   orb2OffsetY: 0,
   orb2OffsetZ: -0.75,
   orb2Scale: 1.04,

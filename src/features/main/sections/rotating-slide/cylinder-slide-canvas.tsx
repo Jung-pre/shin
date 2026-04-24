@@ -34,6 +34,8 @@ export interface CylinderSlideCanvasProps {
   cylinderTiltDeg?: number;
   /** 카드 사이 Y 계단(world unit). 0=수평, 양수=뒤 카드일수록 위, 음수=아래. */
   cardYStep?: number;
+  /** 튜닝 패널 조작 시 즉시 반영을 위한 실시간 프레임 모드 */
+  realtimeTuning?: boolean;
   isActive: boolean;
 }
 
@@ -51,6 +53,7 @@ export function CylinderSlideCanvas({
   sideDim = 0.55,
   cylinderTiltDeg = 0,
   cardYStep = 0,
+  realtimeTuning = false,
   isActive,
 }: CylinderSlideCanvasProps) {
   const velocityRef = useScrollVelocity();
@@ -58,7 +61,7 @@ export function CylinderSlideCanvas({
   return (
     <Canvas
       dpr={[1, 1.5]}
-      frameloop="demand"
+      frameloop={realtimeTuning ? "always" : "demand"}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
       camera={{ position: [0, 0, cameraZ], fov, near: 0.1, far: 20 }}
       onCreated={({ gl, scene }) => {
