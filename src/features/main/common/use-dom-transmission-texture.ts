@@ -57,6 +57,14 @@ export interface UseImageTransmissionTextureOptions {
    * "투명한 유리" 느낌이 된다. 기본 true (기존 동작 유지).
    */
   renderImage?: boolean;
+  /**
+   * 히어로 아래로는 `targetRef` 정렬을 이 문서 스크롤 Y 에 **고정** (그때 보던 img_hero 정합 유지).
+   * `null`/미전달 = 항상 실시간 스크롤.
+   */
+  lockTextureAtScrollYRef?: RefObject<number | null>;
+  /** target 중심 기준 추가 이동(px) — DOM 글자와 buffer 스케일/정합 미세 조정 */
+  centerOffsetXPx?: number;
+  centerOffsetYPx?: number;
 }
 
 const getPngFallbackSrc = (url: string): string | null => {
@@ -90,7 +98,18 @@ export const useImageTransmissionTexture = (
     srcFocusX = 0.5,
     srcFocusY = 0.5,
     renderImage = true,
+    lockTextureAtScrollYRef,
+    centerOffsetXPx = 0,
+    centerOffsetYPx = 0,
   } = options;
+
+  /**
+   * lockTextureAtScrollYRef 는 variant 전환 시 undefined ↔ object 로 바뀌어
+   * useEffect deps 길이가 달라지는 HMR/리렌더 경고를 피하려고, **항상 같은 ref** 하나에
+   * 바깥 ref 를 매 렌더 복사해 둔다(내부 .current = 부모가 준 ref 또는 null).
+   */
+  const lockOuterStoreRef = useRef(lockTextureAtScrollYRef);
+  lockOuterStoreRef.current = lockTextureAtScrollYRef;
 
   const texture = useMemo((): CanvasTexture | null => {
     if (typeof document === "undefined") {
@@ -174,24 +193,34 @@ export const useImageTransmissionTexture = (
     const drawH = imgH * scale;
 
     // 중심 좌표 — target 지정 시 해당 요소의 bbox 중심, 없으면 뷰포트 중심.
-    // 스크롤에 따라 rect.top 이 자연스럽게 음수로 내려가므로 1:1 동기화는 이 한 줄로 성립.
-    //
-    // 단, target 이 뷰포트에서 "너무 멀리" (위·아래로 1.5vh 이상) 벗어나면 이미지가
-    // 캔버스 밖으로 그려져 렌즈 내부가 비어(검은 배경) 보인다 — 페이지 하단 글래스
-    // 리마운트 시 targetRef(히어로 타이틀) 가 수천 px 위에 있으므로 이 케이스. 그때는
-    // 뷰포트 중심을 폴백으로 써서 렌즈에 배경이 비치게 한다(투명한 느낌 회복).
+    // 스크롤에 따라 rect.top 이 자연스럽게 음수로 내려감(히어로와 1:1).
+    // lockY 넘기면: 그 스크롤에 있을 때의 bbox 를 쓰는 것과 동일 → rect.top += (scrollY - lockY)
+    const scrollY = window.scrollY || 0;
+    const lockY = lockOuterStoreRef.current?.current;
+    const effectiveScrollY =
+      lockY != null && Number.isFinite(lockY) && lockY > 0 && scrollY >= lockY
+        ? lockY
+        : scrollY;
+    const scrollShiftY = scrollY - effectiveScrollY;
+
+    // 단, target 이 뷰포트에서 "너무 멀리" (원래는 폴백) — **고정(shiftY>0)**이면
+    // 히어로 밖이어도 가상 rect 로 계속 img 를 채움(고정된 한 프레임).
     const target = targetRef?.current ?? null;
     const rect = target?.getBoundingClientRect();
+    const adjTop = rect ? rect.top + scrollShiftY : 0;
+    const adjBottom = rect ? rect.bottom + scrollShiftY : 0;
     const viewportFarMargin = viewH * 1.5;
     const targetInRange =
       rect &&
       rect.width > 0 &&
-      rect.top > -viewportFarMargin &&
-      rect.bottom < viewH + viewportFarMargin;
-    const centerX =
+      (scrollShiftY > 0 ||
+        (adjTop > -viewportFarMargin && adjBottom < viewH + viewportFarMargin));
+    const baseCenterX =
       targetInRange && rect ? rect.left + rect.width / 2 : viewW / 2;
-    const centerY =
-      targetInRange && rect ? rect.top + rect.height / 2 : viewH / 2;
+    const baseCenterY =
+      targetInRange && rect ? adjTop + rect.height / 2 : viewH / 2;
+    const centerX = baseCenterX + centerOffsetXPx;
+    const centerY = baseCenterY + centerOffsetYPx;
 
     // 포커스 포인트(srcFocusX/Y · 0~1) 가 centerX/Y 에 오도록 좌상단 좌표 계산.
     //   - 기본 0.5 면 이미지 정중앙이 타겟 중심에 정렬 (기존 동작과 동일).
@@ -211,7 +240,19 @@ export const useImageTransmissionTexture = (
     texture.needsUpdate = true;
     // demand frameloop 에서 즉시 다음 프레임 렌더를 예약. React state 체인을 우회해 지연 제거.
     invalidate?.();
-  }, [texture, targetRef, fit, zoom, backgroundColor, invalidate, srcFocusX, srcFocusY, renderImage]);
+  }, [
+    texture,
+    targetRef,
+    fit,
+    zoom,
+    backgroundColor,
+    invalidate,
+    srcFocusX,
+    srcFocusY,
+    renderImage,
+    centerOffsetXPx,
+    centerOffsetYPx,
+  ]);
 
   // 이미지 로드
   useEffect(() => {
@@ -324,9 +365,10 @@ export const useImageTransmissionTexture = (
     };
 
     // 스크롤은 RAF 로 병합 — 한 프레임 안에 여러 번 와도 redraw 는 1회만.
-    // 글래스가 숨겨진 구간에서는 rAF 예약조차 걸지 않아 완전히 idle.
+    // 히어로 buffer 락(lockTextureAtScrollYRef) 쓰는 인스턴스는 중간~하단에서도
+    // `isGlassHidden` 이 막으면 잠긴 frame 이 한 번도 안 그려질 수 있어 항상 rAF.
     const onScroll = () => {
-      if (isGlassHidden()) return;
+      if (!lockOuterStoreRef.current && isGlassHidden()) return;
       scheduleRaf();
     };
     window.addEventListener("scroll", onScroll, { passive: true });

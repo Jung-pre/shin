@@ -61,6 +61,11 @@ export function CylinderSlideCanvas({
       frameloop="demand"
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
       camera={{ position: [0, 0, cameraZ], fov, near: 0.1, far: 20 }}
+      onCreated={({ gl, scene }) => {
+        // 투명 클리어: 알파 구간이 흰색으로 보이지 않게(뒤 그리드/섹션이 보이도록)
+        gl.setClearColor(0x000000, 0);
+        scene.background = null;
+      }}
     >
       <ambientLight intensity={0.9} />
       <CameraSync cameraZ={cameraZ} fov={fov} />

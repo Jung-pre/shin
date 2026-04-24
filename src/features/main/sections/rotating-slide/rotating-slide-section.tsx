@@ -1,7 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -88,8 +96,22 @@ const TEXT_TRANSITION = {
   ease: [0.22, 1, 0.36, 1] as const,
 };
 
-export function RotatingSlideSection() {
-  const sectionRef = useRef<HTMLElement>(null);
+export const RotatingSlideSection = forwardRef<HTMLElement, object>(function RotatingSlideSection(
+  _props,
+  forwardedRef,
+) {
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const setSectionRef = useCallback(
+    (node: HTMLElement | null) => {
+      sectionRef.current = node;
+      if (typeof forwardedRef === "function") {
+        forwardedRef(node);
+      } else if (forwardedRef) {
+        (forwardedRef as MutableRefObject<HTMLElement | null>).current = node;
+      }
+    },
+    [forwardedRef],
+  );
   const pinRef = useRef<HTMLDivElement>(null);
 
   // progress 는 ref + state 투트랙:
@@ -179,14 +201,13 @@ export function RotatingSlideSection() {
 
   return (
     <section
-      ref={sectionRef}
+      ref={setSectionRef}
       className={styles.section}
       style={{
         height: `${ROTATION_SLIDES_COUNT * 100}vh`,
-        ["--slide-vignette"         as string]: `${tuning.vignetteWidth}%`,
-        ["--slide-vignette-y"       as string]: `${tuning.vignetteHeight}%`,
-        ["--slide-vignette-opacity" as string]: String(tuning.vignetteOpacity),
-        ["--slide-section-bg"       as string]: `rgb(${Math.round(tuning.vignetteBgR)},${Math.round(tuning.vignetteBgG)},${Math.round(tuning.vignetteBgB)})`,
+        // canvasWrap mask 곡률(%) — 흰 비네 오버레이와 무관(그 레이어는 사용하지 않음)
+        ["--slide-vignette" as string]: `${tuning.vignetteWidth}%`,
+        ["--slide-vignette-y" as string]: `${tuning.vignetteHeight}%`,
       }}
       aria-label="Clinic rotating highlights"
     >
@@ -209,9 +230,6 @@ export function RotatingSlideSection() {
             cardYStep={tuning.cardYStep}
           />
         </div>
-
-        {/* 좌우 소프트 딤 오버레이 — 배경색(--slide-section-bg)으로 자연스럽게 스며듦 */}
-        <div className={styles.vignette} aria-hidden />
 
         <div className={styles.copy}>
           <AnimatePresence initial={false} mode="wait">
@@ -243,4 +261,4 @@ export function RotatingSlideSection() {
       ) : null}
     </section>
   );
-}
+});

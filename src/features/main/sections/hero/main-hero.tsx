@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type FormEvent, type RefObject } from "react";
+import { useState, type FormEvent, type RefObject, type Ref } from "react";
 import clsx from "clsx";
 import type { HeroQuickBarMessages } from "@/shared/i18n/messages";
 import type { Locale } from "@/shared/config/i18n";
@@ -12,6 +12,8 @@ export interface MainHeroProps {
   locale: Locale;
   /** 글래스 렌즈가 정합될 타이틀(h1) ref — MainPage 에서 GlassOrbsScene 과 공유 */
   titleRef?: RefObject<HTMLHeadingElement | null>;
+  /** 히어로 섹션 루트 — 글래스 전송 img 스크롤 락(히어로 끝) 계산용 */
+  sectionRef?: Ref<HTMLElement | null>;
 }
 
 /* ---------- 퀵 상담 바 ---------- */
@@ -165,7 +167,7 @@ function QuickBar({ messages, locale }: { messages: HeroQuickBarMessages; locale
                 onChange={(e) => setConsent(e.target.checked)}
               />
               <span className={styles.consentText}>
-                <span>{messages.consentLabel}</span>
+                <span className={styles.consentLabelText}>{messages.consentLabel}</span>
                 <a className={styles.consentDetailLink} href={`/${locale}/privacy#collection`}>
                   [{messages.consentViewDetail}]
                 </a>
@@ -205,11 +207,11 @@ function QuickBar({ messages, locale }: { messages: HeroQuickBarMessages; locale
 /* ---------- 메인 히어로(첫 화면) ---------- */
 
 /** 그리드·글래스·타이틀은 `MainPage` 전역 레이어 — 여기서는 퀵바가 있는 히어로 구역만. */
-export function MainHero({ heroQuickBar, locale, titleRef }: MainHeroProps) {
+export function MainHero({ heroQuickBar, locale, titleRef, sectionRef }: MainHeroProps) {
   const titleText = "신세계안과";
 
   return (
-    <section className={styles.section} aria-label="Hero">
+    <section ref={sectionRef} className={styles.section} aria-label="Hero">
       {/* 히어로 소스 이미지를 next/image priority 로 워밍해 초기 네트워크 우선순위를 고정한다. */}
       <div className={styles.heroImageWarmup} aria-hidden>
         <Image

@@ -1,7 +1,7 @@
 /*
  * CssGlassScene — `.glassLayer` 안에 들어가서 3D 씬과 동일한 뷰포트 중앙 배치.
- * `.glassLayer` 가 이미 position: fixed + mask-image + 40rem 높이 로 레이어를 잡았으므로
- * 여기서는 100% 영역을 채우기만 하면 된다.
+ * `.glassLayer` 가 fixed + 세로 마스크 + `var(--glass-band-h)` 로 밴드 높이를 잡으므로
+ * 여기서는 inset:0 으로 100% 영역을 채우기만 하면 된다.
  */
 .scene {
   position: absolute;

@@ -24,7 +24,22 @@ import {
   type CSGOperation,
 } from "three-bvh-csg";
 import { useImageTransmissionTexture } from "@/features/main/common/use-dom-transmission-texture";
+import {
+  type SceneConfig,
+  type EnvironmentPreset,
+  type RimPreset,
+  type OrbMergeMode,
+  DEFAULT_CONFIG,
+  ORB_MERGE_MODES,
+  ENVIRONMENT_PRESETS,
+  RIM_PRESETS,
+} from "./glass-scene-config.types";
+import { resolveLensScales } from "./glass-lens-geometry";
+import { GlassSceneConfigPanel } from "./glass-scene-config-panel";
 import styles from "./glass-orbs-scene.module.css";
+
+export type { SceneConfig } from "./glass-scene-config.types";
+export { DEFAULT_CONFIG } from "./glass-scene-config.types";
 
 /**
  * gl 은 factory 가 아닌 **options 객체** 로 전달해 R3F 가 renderer 생성 / dispose /
@@ -50,303 +65,11 @@ type Vector3Tuple = [number, number, number];
 const ORB_RADIUS = 1.72;
 const ORB_POSITION: Vector3Tuple = [0, 0, 0];
 
-const ENVIRONMENT_PRESETS = [
-  "citrus_orchard",
-  "studio",
-  "city",
-  "dawn",
-  "forest",
-  "apartment",
-  "night",
-  "park",
-  "sunset",
-  "warehouse",
-  "lobby",
-] as const;
-type EnvironmentPreset = (typeof ENVIRONMENT_PRESETS)[number];
-
 /** 커스텀 HDR 파일 경로 매핑 — preset 값이 여기 있으면 drei preset 대신 파일을 직접 로드 */
 const CUSTOM_HDR_FILES: Partial<Record<EnvironmentPreset, string>> = {
   citrus_orchard: "/main/citrus_orchard_road_puresky_1k.hdr",
+  passendorf_snow: "/main/passendorf_snow_1k.hdr",
 };
-
-/**
- * Rim env 프리셋
- * - flat    : 순수 단색 배경만 (Lightformer 0 개) → 가장자리에 색만 깔림, 아무 모양도 안 보임
- * - soft    : 큰 사각 라이트포머 2~3장으로 넓게 퍼지는 소프트 하이라이트
- * - studio  : 위/좌우에서 들어오는 패널 조명 (사진 스튜디오 느낌)
- * - dome    : 상단 돔에서 감싸 내려오는 분위기, 바닥은 어둡게
- * - bands   : 수평 띠 하이라이트 (실린더 느낌)
- */
-const RIM_PRESETS = ["flat", "soft", "studio", "dome", "bands"] as const;
-type RimPreset = (typeof RIM_PRESETS)[number];
-
-/**
- * 두 렌즈 불리언 연산 (Figma boolean 과 동일)
- * - separate  : 구 2개를 각각 그리는 기본 모드 (겹쳐도 각자 렌즈)
- * - union     : 합집합 — 두 구가 하나로 합쳐지되 경계는 날카롭게 남음 (Figma Union)
- * - subtract  : orb1 - orb2 — 첫 번째 구에서 두 번째 구 모양이 파여 나감 (Figma Subtract)
- * - intersect : 교집합 — 두 구가 겹치는 영역만 남음 (Figma Intersect)
- * - exclude   : 대칭 차집합(XOR) — 겹치는 영역이 뻥 뚫리고 양쪽 초승달만 남음 (Figma Exclude)
- *
- * CSG 연산은 `three-bvh-csg` 로 수행. 메쉬 하나로 합쳐지므로 MTM 굴절도 그 결과면에서 일어남.
- */
-const ORB_MERGE_MODES = ["separate", "union", "subtract", "intersect", "exclude"] as const;
-type OrbMergeMode = (typeof ORB_MERGE_MODES)[number];
-
-/**
- * 렌즈·환경·조명을 한 객체로 관리.
- * 옵션 팝업 UI 는 이 객체의 각 필드를 섹션별로 그려 준다.
- */
-export interface SceneConfig {
-  /* 렌즈 지오메트리 */
-  /** 평면 렌즈(얇은 볼록 유리) ↔ 크리스탈 볼 프리셋 토글. ON 이면 XY/Z 1.0 구 형태 */
-  ballMode: boolean;
-  /** 가로·세로 스케일 — ballMode OFF 일 때만 UI 노출 */
-  orbScaleXY: number;
-  /** Z 축 두께 — 0.33 ≈ 얇은 렌즈, 1.0 = 완전한 구, 1.5 = 앞뒤로 길어진 렌즈 */
-  orbScaleZ: number;
-  maxDiameterRem: number;
-
-  /* 첫 번째 렌즈 — 추가 오프셋(월드 단위).
-   * 기본은 pair-centering 결과 위치(orb2 와 대칭) 에 머무르고,
-   * 여기 값이 0 이 아니면 그 위에 덧씌워 orb1 만 따로 이동시킨다. */
-  orb1OffsetX: number;
-  orb1OffsetY: number;
-  orb1OffsetZ: number;
-
-  /* 두 번째 렌즈 — 메인 렌즈 옆에 함께 배치되는 서브 오브
-   * 위치는 orb1 기준 상대 오프셋(월드 단위).
-   * ON 이면 두 렌즈의 중심이 뷰포트 센터에 대칭되도록 자동 정렬. */
-  orb2Enabled: boolean;
-  /** orb1 대비 X 오프셋 (양수 = 오른쪽). 월드 단위. */
-  orb2OffsetX: number;
-  /** orb1 대비 Y 오프셋 (양수 = 위쪽). 월드 단위. */
-  orb2OffsetY: number;
-  /** orb1 대비 Z 오프셋 (음수 = 뒤로, 양수 = 카메라 쪽). 월드 단위. */
-  orb2OffsetZ: number;
-  /** orb1 스케일 대비 배율. 0.9 = 10% 작게 */
-  orb2Scale: number;
-
-  /** 두 렌즈 불리언 모드 — orb1 ↔ orb2 에만 적용 */
-  orbMerge: OrbMergeMode;
-
-  /* 렌즈 재질 (MeshTransmissionMaterial) */
-  thickness: number;
-  ior: number;
-  chromaticAberration: number;
-  anisotropy: number;
-  distortion: number;
-  distortionScale: number;
-  backside: boolean;
-  backsideThickness: number;
-  attenuationDistance: number;
-  samples: number;
-  resolution: number;
-
-  /* 배경 환경 — 기본 OFF. 켜면 drei HDR preset 이 CDN 에서 다운로드 + PMREM 구움 → GPU 부하 큼. */
-  envEnabled: boolean;
-  envPreset: EnvironmentPreset;
-  envIntensity: number;
-  envBackground: boolean;
-  envBackgroundBlurriness: number;
-  envBackgroundIntensity: number;
-  envShowLightformers: boolean;
-
-  /* Rim 글로우 — 유리 가장자리 프레넬 반사에 광원 색을 깔아 주는 초경량 env.
-   * HDR 로드 없이 PMREM 만 1회 구움 (frames: 1, resolution: 64) → 거의 비용 없음.
-   * HDR env 가 꺼져 있을 때만 활성. 검은 가장자리 제거용 핵심 옵션. */
-  rimEnabled: boolean;
-  /** Lightformer 레이아웃 프리셋 — 중앙에 모양 찍히는 것 방지용 */
-  rimPreset: RimPreset;
-  rimColor: string;
-  rimIntensity: number;
-
-  /* 조명 — 기본 값으로도 유리 렌즈 하이라이트가 자연스럽게 나오도록 세팅 */
-  ambientIntensity: number;
-  dirIntensity: number;
-  dirPosX: number;
-  dirPosY: number;
-  dirPosZ: number;
-}
-
-const DEFAULT_CONFIG: SceneConfig = {
-  ballMode: false,
-  orbScaleXY: 0.5,
-  orbScaleZ: 0.3,
-  maxDiameterRem: 31.1,
-
-  // 첫 번째 렌즈 추가 오프셋 — 기본은 pair-centering 결과 위치
-  orb1OffsetX: 0,
-  orb1OffsetY: 0,
-  orb1OffsetZ: 0,
-
-  // 두 번째 렌즈 — 오른쪽에 약간 크게 두고 Z 로 뒤로 밀어서 앞뒤 겹침을 만듦
-  // (CSG 로 한 덩어리 합치지 않고, 구 2개가 각자 살아있는 상태)
-  orb2Enabled: true,
-  orb2OffsetX: 1.0,
-  orb2OffsetY: 0,
-  orb2OffsetZ: -0.75,
-  orb2Scale: 1.09,
-
-  // separate — 두 렌즈가 각자 살아있는 상태로 렌더링 (CSG 머지 없음).
-  orbMerge: "separate",
-
-  thickness: 0.82,
-  ior: 1.15,
-  chromaticAberration: 0,
-  anisotropy: 0,
-  distortion: 0,
-  distortionScale: 0,
-  backside: false,
-  backsideThickness: 0.22,
-  attenuationDistance: 0.1,
-  // Context Lost 방지 — 내부 FBO 를 최소로.
-  samples: 1,
-  resolution: 256,
-
-  envEnabled: true,
-  envPreset: "citrus_orchard",
-  envIntensity: 0.80,
-  envBackground: false,
-  envBackgroundBlurriness: 0,
-  envBackgroundIntensity: 0,
-  envShowLightformers: true,
-
-  rimEnabled: false,
-  rimPreset: "flat",
-  rimColor: "#F8E8FF",
-  rimIntensity: 1.3,
-
-  // 유리 하이라이트가 뜨도록 기본값 세팅.
-  ambientIntensity: 0.6,
-  dirIntensity: 1.8,
-  dirPosX: 2,
-  dirPosY: 3,
-  dirPosZ: 4,
-};
-
-/* ---------- 필드 타입 / 섹션 스키마 ---------- */
-
-type KeysOfType<T, V> = { [K in keyof T]: T[K] extends V ? K : never }[keyof T];
-type NumKey = KeysOfType<SceneConfig, number>;
-type BoolKey = KeysOfType<SceneConfig, boolean>;
-type StrKey = KeysOfType<SceneConfig, string>;
-
-type FieldSpec =
-  | {
-      type: "slider";
-      key: NumKey;
-      label: string;
-      min: number;
-      max: number;
-      step: number;
-      integer?: boolean;
-    }
-  | {
-      type: "toggle";
-      key: BoolKey;
-      label: string;
-    }
-  | {
-      type: "select";
-      key: StrKey;
-      label: string;
-      options: readonly string[];
-    }
-  | {
-      type: "color";
-      key: StrKey;
-      label: string;
-    };
-
-interface FieldSection {
-  title: string;
-  fields: readonly FieldSpec[];
-}
-
-const SECTIONS: readonly FieldSection[] = [
-  {
-    title: "렌즈(Lens)",
-    fields: [
-      { type: "toggle", key: "ballMode", label: "Ball Mode (반대로 볼록)" },
-      { type: "slider", key: "maxDiameterRem", label: "Max 지름(rem)", min: 5, max: 60, step: 0.1 },
-      { type: "slider", key: "orbScaleXY", label: "XY 스케일", min: 0.3, max: 2, step: 0.01 },
-      { type: "slider", key: "orbScaleZ", label: "Z 두께", min: 0.2, max: 2, step: 0.01 },
-      { type: "slider", key: "thickness", label: "Thickness", min: 0, max: 3, step: 0.01 },
-      { type: "slider", key: "ior", label: "IOR", min: 1, max: 2.5, step: 0.01 },
-      { type: "slider", key: "chromaticAberration", label: "Chromatic Ab.", min: 0, max: 1, step: 0.01 },
-      { type: "slider", key: "anisotropy", label: "Anisotropy", min: 0, max: 1, step: 0.01 },
-      { type: "slider", key: "distortion", label: "Distortion", min: 0, max: 2, step: 0.01 },
-      { type: "slider", key: "distortionScale", label: "Distortion Scale", min: 0, max: 1, step: 0.01 },
-      { type: "toggle", key: "backside", label: "Backside (FBO 2x)" },
-      { type: "slider", key: "backsideThickness", label: "Backside Thick.", min: 0, max: 2, step: 0.01 },
-      { type: "slider", key: "attenuationDistance", label: "Attenuation Dist.", min: 0.1, max: 30, step: 0.1 },
-      { type: "slider", key: "samples", label: "Samples", min: 1, max: 32, step: 1, integer: true },
-      { type: "slider", key: "resolution", label: "Resolution", min: 256, max: 2048, step: 256, integer: true },
-    ],
-  },
-  {
-    title: "첫 번째 렌즈(Orb 1) · 위치 추가 오프셋",
-    fields: [
-      { type: "slider", key: "orb1OffsetX", label: "X 오프셋", min: -4, max: 4, step: 0.05 },
-      { type: "slider", key: "orb1OffsetY", label: "Y 오프셋", min: -4, max: 4, step: 0.05 },
-      { type: "slider", key: "orb1OffsetZ", label: "Z 오프셋 (음수 = 뒤로)", min: -4, max: 4, step: 0.05 },
-    ],
-  },
-  {
-    title: "두 번째 렌즈(Orb 2)",
-    fields: [
-      { type: "toggle", key: "orb2Enabled", label: "Orb 2 ON" },
-      { type: "slider", key: "orb2OffsetX", label: "X 오프셋", min: -4, max: 4, step: 0.05 },
-      { type: "slider", key: "orb2OffsetY", label: "Y 오프셋", min: -4, max: 4, step: 0.05 },
-      { type: "slider", key: "orb2OffsetZ", label: "Z 오프셋 (음수 = 뒤로)", min: -4, max: 4, step: 0.05 },
-      { type: "slider", key: "orb2Scale", label: "스케일 배율", min: 0.3, max: 1.6, step: 0.01 },
-    ],
-  },
-  {
-    title: "Boolean Merge (렌즈 합치기)",
-    fields: [
-      {
-        type: "select",
-        key: "orbMerge",
-        label: "Merge Mode",
-        options: ORB_MERGE_MODES,
-      },
-    ],
-  },
-  {
-    title: "Rim Glow (가장자리 글로우 — 경량)",
-    fields: [
-      { type: "toggle", key: "rimEnabled", label: "Rim ON" },
-      { type: "select", key: "rimPreset", label: "Rim 레이아웃", options: RIM_PRESETS },
-      { type: "color", key: "rimColor", label: "Rim 색상" },
-      { type: "slider", key: "rimIntensity", label: "Rim 강도", min: 0, max: 10, step: 0.1 },
-    ],
-  },
-  {
-    title: "HDR 환경 (무거운 배경 · 반짝임 강화)",
-    fields: [
-      { type: "toggle", key: "envEnabled", label: "HDR ENV ON (GPU 부하 큼)" },
-      { type: "select", key: "envPreset", label: "HDR Preset", options: ENVIRONMENT_PRESETS },
-      { type: "slider", key: "envIntensity", label: "ENV 강도", min: 0, max: 5, step: 0.05 },
-      { type: "toggle", key: "envBackground", label: "배경으로 렌더" },
-      { type: "slider", key: "envBackgroundBlurriness", label: "배경 흐림", min: 0, max: 1, step: 0.01 },
-      { type: "slider", key: "envBackgroundIntensity", label: "배경 밝기", min: 0, max: 3, step: 0.05 },
-      { type: "toggle", key: "envShowLightformers", label: "Lightformers ON" },
-    ],
-  },
-  {
-    title: "조명(Lights)",
-    fields: [
-      { type: "slider", key: "ambientIntensity", label: "Ambient", min: 0, max: 5, step: 0.05 },
-      { type: "slider", key: "dirIntensity", label: "Dir 강도", min: 0, max: 10, step: 0.1 },
-      { type: "slider", key: "dirPosX", label: "Dir X", min: -10, max: 10, step: 0.5 },
-      { type: "slider", key: "dirPosY", label: "Dir Y", min: -10, max: 10, step: 0.5 },
-      { type: "slider", key: "dirPosZ", label: "Dir Z", min: -10, max: 10, step: 0.5 },
-    ],
-  },
-];
 
 /* ---------- 3D 컴포넌트 ---------- */
 
@@ -369,9 +92,8 @@ const GlassOrb = ({
    * ballMode ON → 완전한 구(1,1,1) → 크리스탈 볼처럼 텍스트가 확대·반전되어 보임.
    * ballMode OFF → 슬라이더 XY/Z 로 얇은 볼록 렌즈 형태로 직접 조정.
    */
-  const baseScale: Vector3Tuple = config.ballMode
-    ? [1, 1, 1]
-    : [config.orbScaleXY, config.orbScaleXY, config.orbScaleZ];
+  const { xy: sxy, z: sz } = resolveLensScales(config);
+  const baseScale: Vector3Tuple = config.ballMode ? [1, 1, 1] : [sxy, sxy, sz];
   const scale: Vector3Tuple = [
     baseScale[0] * scaleMultiplier,
     baseScale[1] * scaleMultiplier,
@@ -450,8 +172,7 @@ const CsgLens = ({ buffer, config }: CsgLensProps) => {
   }, []);
 
   const geometry = useMemo(() => {
-    const effXY = config.ballMode ? 1 : config.orbScaleXY;
-    const effZ = config.ballMode ? 1 : config.orbScaleZ;
+    const { xy: effXY, z: effZ } = resolveLensScales(config);
 
     const geomA = cloneSphereGeom();
     const brushA = new Brush(geomA);
@@ -504,6 +225,8 @@ const CsgLens = ({ buffer, config }: CsgLensProps) => {
     config.orbScaleXY,
     config.orbScaleZ,
     config.ballMode,
+    config.lensFlatness,
+    config.lensScalesManual,
   ]);
 
   useEffect(() => {
@@ -729,6 +452,11 @@ interface MouseTiltGroupProps {
   lerpSpeed?: number;
   /** 이 배수만큼 뷰포트를 스크롤하면 tilt 0 으로 페이드 */
   scrollFadeVh?: number;
+  /**
+   * 문서 Y(절대) — 이 위치 "이전"까지는 상단 틸트 페이드를 적용하지 않는다(히어로~회전슬라이드).
+   * 지정되지 않으면 기존처럼 `scrollY / (h*scrollFadeVh)` 만 사용.
+   */
+  mouseTiltHoldDocYRef?: RefObject<number | null>;
 }
 
 const MouseTiltGroup = ({
@@ -736,6 +464,7 @@ const MouseTiltGroup = ({
   maxTiltRad = 0.12,
   lerpSpeed = 8,
   scrollFadeVh = 1,
+  mouseTiltHoldDocYRef,
 }: MouseTiltGroupProps) => {
   const groupRef = useRef<ThreeGroup>(null);
   const target = useRef({ x: 0, y: 0 });
@@ -753,9 +482,18 @@ const MouseTiltGroup = ({
       const nx = (lastMouse.current.x / w) * 2 - 1;
       const ny = (lastMouse.current.y / h) * 2 - 1;
       const scrollY = window.scrollY || 0;
-      // 상단 히어로 구간에선 scrollY 기준으로, 하단 피날레 구간에선 남은 스크롤 기준으로
-      // 각각 fade 를 계산하고 둘 중 큰 값을 쓴다 → 두 구간 모두 tilt 가 살아있음.
-      const topFade = Math.max(0, 1 - scrollY / (h * scrollFadeVh));
+      const holdY = mouseTiltHoldDocYRef?.current;
+      // 상단: 히어로~RotatingSlideSection 끝까지 틸트 유지(옵션), 그다음 scrollFadeVh 만큼 감쇠.
+      let topFade: number;
+      if (holdY != null && Number.isFinite(holdY) && holdY > 0) {
+        topFade =
+          scrollY < holdY
+            ? 1
+            : Math.max(0, 1 - (scrollY - holdY) / (h * scrollFadeVh));
+      } else {
+        topFade = Math.max(0, 1 - scrollY / (h * scrollFadeVh));
+      }
+      // 하단 피날레: 남은 스크롤 기준 — 상단/하단 둘 중 큰 값 → 두 구간 모두 tilt 느낌 유지.
       const docH =
         typeof document !== "undefined"
           ? Math.max(
@@ -777,7 +515,12 @@ const MouseTiltGroup = ({
       //     최신 상태로 유지됨 → opacity 0→1 전환 첫 프레임이 이미 따뜻.
       //   · 버퍼 범위를 벗어나면 기존처럼 wasVisibleRef 로 "한 프레임만 lerp→0" 수행 후 정지.
       const PREWARM_VH = 0.5;
-      const topPrewarm = scrollY < h * (scrollFadeVh + PREWARM_VH);
+      const topPrewarmFromHero = scrollY < h * (scrollFadeVh + PREWARM_VH);
+      const topPrewarmThroughHold =
+        holdY != null && Number.isFinite(holdY) && holdY > 0
+          ? scrollY < holdY + h * PREWARM_VH
+          : false;
+      const topPrewarm = topPrewarmFromHero || topPrewarmThroughHold;
       const bottomPrewarm = remaining < h * (scrollFadeVh + PREWARM_VH);
       const nearVisible = topPrewarm || bottomPrewarm;
       if (nearVisible || wasVisibleRef.current) {
@@ -805,7 +548,7 @@ const MouseTiltGroup = ({
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("scroll", handleScroll);
     };
-  }, [invalidate, maxTiltRad, scrollFadeVh]);
+  }, [invalidate, maxTiltRad, lerpSpeed, scrollFadeVh, mouseTiltHoldDocYRef]);
 
   useFrame((_, delta) => {
     const group = groupRef.current;
@@ -826,13 +569,87 @@ const MouseTiltGroup = ({
   return <group ref={groupRef}>{children}</group>;
 };
 
+const smooth01 = (t: number) => {
+  const c = Math.min(1, Math.max(0, t));
+  return c * c * (3 - 2 * c);
+};
+
+/**
+ * 스크롤 p(0→1) 를 **3등분** (각 ⅓) — J = `journeyMaxYDeg` 라드(`maxYRad`):
+ *   ⅓: 0 → **왼 −J** (기본 60°)
+ *   ⅓: **−J → 0** (다시 0)
+ *   ⅓: **0 → +2π·(J/60°)** (360° 가 J=60° 일 때; 슬라이더로 1·3 구간 강도 스케일)
+ * 구간마다 smoothstep.
+ */
+function ScrollJourneyYRotation({
+  children,
+  progressRef,
+  maxYRad,
+}: {
+  children: ReactNode;
+  progressRef: MutableRefObject<number>;
+  maxYRad: number;
+}) {
+  const groupRef = useRef<ThreeGroup>(null);
+  const invalidate = useThree((s) => s.invalidate);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onScroll = () => {
+      invalidate();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [invalidate]);
+
+  useEffect(() => {
+    invalidate();
+  }, [maxYRad, invalidate]);
+
+  useFrame(() => {
+    const g = groupRef.current;
+    if (!g) return;
+    const p = Math.min(1, Math.max(0, progressRef.current));
+    const J = maxYRad;
+    /** 60° 기준: 마지막 ⅓ 의 한 바퀴 = 2π×(J/60°) = 6J (라디안 J=π/3 이면 2π) */
+    const D60 = Math.PI / 3;
+    const fullSpin = 2 * Math.PI * (J / D60);
+    const u0 = 3 * p;
+    const u1 = 3 * p - 1;
+    const u2 = 3 * p - 2;
+    let y: number;
+    if (p < 1 / 3) {
+      y = -J * smooth01(u0);
+    } else if (p < 2 / 3) {
+      y = -J * (1 - smooth01(u1));
+    } else {
+      y = fullSpin * smooth01(u2);
+    }
+    if (Math.abs(g.rotation.y - y) > 0.00002) {
+      g.rotation.y = y;
+      invalidate();
+    }
+  });
+
+  return <group ref={groupRef}>{children}</group>;
+}
+
 interface LensContentProps {
   buffer: Texture;
   bufferVersion: number;
   config: SceneConfig;
+  journeyProgressRef?: MutableRefObject<number>;
+  mouseTiltHoldDocYRef?: RefObject<number | null>;
 }
 
-const LensContent = ({ buffer, bufferVersion, config }: LensContentProps) => {
+const LensContent = ({
+  buffer,
+  bufferVersion,
+  config,
+  journeyProgressRef,
+  mouseTiltHoldDocYRef,
+}: LensContentProps) => {
   const { viewport, size, invalidate } = useThree();
   const rootFontSize = useRootFontSize();
 
@@ -843,7 +660,8 @@ const LensContent = ({ buffer, bufferVersion, config }: LensContentProps) => {
     const targetDiameterWorld = targetDiameterPx * worldPerPx;
     const baseDiameterWorld = 2 * ORB_RADIUS;
     // GlassOrb 내부 XY scale 을 감안해 최종 렌더 지름이 Max 지름을 넘지 않게 보정.
-    const effectiveXY = config.ballMode ? 1 : config.orbScaleXY;
+    const { xy: eff } = resolveLensScales(config);
+    const effectiveXY = config.ballMode ? 1 : eff;
     return targetDiameterWorld / (baseDiameterWorld * effectiveXY);
   }, [
     viewport.width,
@@ -852,6 +670,9 @@ const LensContent = ({ buffer, bufferVersion, config }: LensContentProps) => {
     config.maxDiameterRem,
     config.ballMode,
     config.orbScaleXY,
+    config.orbScaleZ,
+    config.lensFlatness,
+    config.lensScalesManual,
   ]);
 
   /**
@@ -887,19 +708,49 @@ const LensContent = ({ buffer, bufferVersion, config }: LensContentProps) => {
     config.orb2OffsetZ,
   ];
 
+  const journeyMaxRad = config.journeyEnabled
+    ? (config.journeyMaxYDeg * Math.PI) / 180
+    : 0;
+
+  const journeyWrap = (node: ReactNode) => {
+    if (!journeyProgressRef || journeyMaxRad <= 0) {
+      return node;
+    }
+    return (
+      <ScrollJourneyYRotation
+        progressRef={journeyProgressRef}
+        maxYRad={journeyMaxRad}
+      >
+        {node}
+      </ScrollJourneyYRotation>
+    );
+  };
+
+  const mouseTiltRad = (config.mouseTiltMaxDeg * Math.PI) / 180;
+
   if (config.orbMerge !== "separate") {
     // CSG 불리언 결과(orb1 ↔ orb2)는 이미 (±offset/2) 대칭으로 구성되므로 추가 centering 불필요.
-    return (
-      <MouseTiltGroup>
+    return journeyWrap(
+      <MouseTiltGroup
+        mouseTiltHoldDocYRef={mouseTiltHoldDocYRef}
+        maxTiltRad={mouseTiltRad}
+        lerpSpeed={config.mouseTiltLerp}
+        scrollFadeVh={config.mouseTiltScrollFadeVh}
+      >
         <group scale={lensScale}>
           <CsgLens buffer={buffer} config={config} />
         </group>
-      </MouseTiltGroup>
+      </MouseTiltGroup>,
     );
   }
 
-  return (
-    <MouseTiltGroup>
+  return journeyWrap(
+    <MouseTiltGroup
+      mouseTiltHoldDocYRef={mouseTiltHoldDocYRef}
+      maxTiltRad={mouseTiltRad}
+      lerpSpeed={config.mouseTiltLerp}
+      scrollFadeVh={config.mouseTiltScrollFadeVh}
+    >
       <group scale={lensScale}>
         <group position={pairCenteringOffset}>
           <GlassOrb buffer={buffer} config={config} position={orb1Position} />
@@ -913,7 +764,7 @@ const LensContent = ({ buffer, bufferVersion, config }: LensContentProps) => {
           ) : null}
         </group>
       </group>
-    </MouseTiltGroup>
+    </MouseTiltGroup>,
   );
 };
 
@@ -977,6 +828,9 @@ interface GlassOrbsContentProps {
   onEnvReady?: () => void;
   /** env 가 필요 없거나 이미 준비됨. FirstFrameReady 게이트를 열 때 쓴다. */
   envSettled: boolean;
+  /** 히어로~RotatingSlideSection 끝까지 0~1, Lens Y 여정 */
+  journeyProgressRef?: MutableRefObject<number>;
+  mouseTiltHoldDocYRef?: RefObject<number | null>;
 }
 
 function GlassOrbsContent({
@@ -987,6 +841,8 @@ function GlassOrbsContent({
   onFirstFrameReady,
   onEnvReady,
   envSettled,
+  journeyProgressRef,
+  mouseTiltHoldDocYRef,
 }: GlassOrbsContentProps) {
   if (!bufferTexture || !isBufferReady) return null;
 
@@ -1012,7 +868,13 @@ function GlassOrbsContent({
         </Suspense>
       ) : null}
       <SceneLights config={config} />
-      <LensContent buffer={bufferTexture} bufferVersion={bufferVersion} config={config} />
+      <LensContent
+        buffer={bufferTexture}
+        bufferVersion={bufferVersion}
+        config={config}
+        journeyProgressRef={journeyProgressRef}
+        mouseTiltHoldDocYRef={mouseTiltHoldDocYRef}
+      />
     </>
   );
 }
@@ -1069,137 +931,6 @@ const EnvReadySentinel = ({ onReady }: EnvReadySentinelProps) => {
   return null;
 };
 
-/* ---------- 옵션 조절 레이어 (DevTool) ---------- */
-
-interface ConfigLayerProps {
-  config: SceneConfig;
-  onChange: (next: SceneConfig) => void;
-  onReset: () => void;
-}
-
-const formatSliderValue = (value: number, integer?: boolean) => {
-  if (integer) return Math.round(value).toString();
-  if (Math.abs(value) >= 10) return value.toFixed(1);
-  return value.toFixed(2);
-};
-
-const ConfigLayer = ({ config, onChange, onReset }: ConfigLayerProps) => {
-  const [isOpen, setIsOpen] = useState(true);
-
-  const updateNumber = (key: NumKey, value: number) => {
-    onChange({ ...config, [key]: value });
-  };
-  const updateBoolean = (key: BoolKey, value: boolean) => {
-    onChange({ ...config, [key]: value });
-  };
-  const updateString = <K extends StrKey>(key: K, value: SceneConfig[K]) => {
-    onChange({ ...config, [key]: value });
-  };
-
-  const renderField = (field: FieldSpec) => {
-    if (field.type === "slider") {
-      const value = config[field.key];
-      return (
-        <label key={field.key} className={styles.layerField}>
-          <span className={styles.layerFieldTitle}>
-            {field.label}: {formatSliderValue(value, field.integer)}
-          </span>
-          <input
-            type="range"
-            min={field.min}
-            max={field.max}
-            step={field.step}
-            value={value}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              updateNumber(field.key, field.integer ? Math.round(next) : next);
-            }}
-          />
-        </label>
-      );
-    }
-
-    if (field.type === "toggle") {
-      const checked = config[field.key];
-      return (
-        <label key={field.key} className={`${styles.layerField} ${styles.layerToggleRow}`}>
-          <span className={styles.layerFieldTitle}>{field.label}</span>
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={(event) => updateBoolean(field.key, event.target.checked)}
-          />
-        </label>
-      );
-    }
-
-    if (field.type === "color") {
-      const value = config[field.key];
-      return (
-        <label key={field.key} className={`${styles.layerField} ${styles.layerToggleRow}`}>
-          <span className={styles.layerFieldTitle}>
-            {field.label}: {value}
-          </span>
-          <input
-            type="color"
-            className={styles.layerColor}
-            value={value}
-            onChange={(event) => {
-              const next = event.target.value as SceneConfig[typeof field.key];
-              updateString(field.key, next);
-            }}
-          />
-        </label>
-      );
-    }
-
-    const value = config[field.key];
-    return (
-      <label key={field.key} className={styles.layerField}>
-        <span className={styles.layerFieldTitle}>{field.label}</span>
-        <select
-          className={styles.layerSelect}
-          value={value}
-          onChange={(event) => {
-            const next = event.target.value as SceneConfig[typeof field.key];
-            updateString(field.key, next);
-          }}
-        >
-          {field.options.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
-            </option>
-          ))}
-        </select>
-      </label>
-    );
-  };
-
-  return (
-    <div className={styles.layerTool}>
-      <button type="button" className={styles.layerToggle} onClick={() => setIsOpen((v) => !v)}>
-        {isOpen ? "옵션 닫기" : "옵션 열기"}
-      </button>
-      {isOpen ? (
-        <div className={styles.layerPopup}>
-          <div className={styles.layerPopupHead}>
-            <span className={styles.layerPopupTitle}>Scene Config</span>
-            <button type="button" className={styles.layerResetBtn} onClick={onReset}>
-              reset
-            </button>
-          </div>
-          {SECTIONS.map((section) => (
-            <section key={section.title} className={styles.layerSection}>
-              <span className={styles.layerSectionTitle}>{section.title}</span>
-              {section.fields.map((field) => renderField(field))}
-            </section>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-};
-
 /* ---------- 메인 Scene ---------- */
 
 export interface GlassOrbsSceneProps {
@@ -1210,13 +941,17 @@ export interface GlassOrbsSceneProps {
    * 지정하면 렌즈 속 글자와 실제 DOM 글자 위치가 1:1 정합됨.
    */
   targetRef?: RefObject<HTMLElement | null>;
-  /**
-   * 소스 이미지 내부의 세로 포커스 (0~1). 기본 0.25 (img_hero.webp 상단 1/4 지점).
-   * 다른 이미지(예: img_frame.webp) 를 쓸 땐 0.5 로 지정해 정중앙을 렌즈 중심에 둔다.
-   */
-  srcFocusY?: number;
   /** 3D 글래스가 첫 렌더 프레임을 그렸을 때 호출 */
   onFirstFrameReady?: () => void;
+  /** 히어로~회전 슬라이드 끝까지 스크롤 진행(0~1) — Y축 "여정" 회전 */
+  journeyProgressRef?: MutableRefObject<number>;
+  /** 이 문서 Y 이전까진 마우스 틸트 상단 감쇠 미적용(페이지 측에서 갱신) */
+  mouseTiltHoldDocYRef?: RefObject<number | null>;
+  /**
+   * 히어로 이미지(전송 buffer) — 이 scrollY 를 넘기면 target 정렬을 고정(히어로와만 1:1).
+   * 하단 variant(img_frame) 등에서는 전달 생략.
+   */
+  lockTextureAtScrollYRef?: RefObject<number | null>;
 }
 
 const DEFAULT_SOURCE_IMAGE = "/main/img_hero.webp";
@@ -1231,7 +966,9 @@ const SHOW_GLASS_SCENE_CONFIG_PANEL = false;
 export const GlassOrbsScene = ({
   sourceImageUrl = DEFAULT_SOURCE_IMAGE,
   targetRef,
-  srcFocusY = 0.25,
+  journeyProgressRef,
+  mouseTiltHoldDocYRef,
+  lockTextureAtScrollYRef,
   onFirstFrameReady,
 }: GlassOrbsSceneProps) => {
   const [config, setConfig] = useState<SceneConfig>(DEFAULT_CONFIG);
@@ -1249,11 +986,15 @@ export const GlassOrbsScene = ({
     {
       targetRef,
       invalidate: invalidateCallback,
-      // img_hero.webp 가 원본 대비 세로 2배(1920×2000)로 확장되면서 실제 히어로 콘텐츠가
-      // 이미지 상단 절반(0~1000) 에 몰려 있음. 따라서 콘텐츠 중심(=전체의 1/4 지점) 을
-      // 렌즈 포커스로 잡아야 글래스 안에 "신세계안과" 타이틀이 정렬되어 보인다.
-      // 하단 variant 는 img_frame.webp 를 정중앙(0.5) 포커스로 사용.
-      srcFocusY,
+      fit: config.transmissionFit,
+      zoom: config.transmissionZoom,
+      srcFocusX: config.transmissionSrcFocusX,
+      srcFocusY: sourceImageUrl.includes("img_frame")
+        ? config.transmissionSrcFocusYFrame
+        : config.transmissionSrcFocusY,
+      centerOffsetXPx: config.transmissionOffsetXPx,
+      centerOffsetYPx: config.transmissionOffsetYPx,
+      lockTextureAtScrollYRef,
     },
   );
 
@@ -1275,29 +1016,32 @@ export const GlassOrbsScene = ({
   const resetConfig = useCallback(() => setConfig(DEFAULT_CONFIG), []);
 
   return (
-    <div className={styles.sceneWrap} aria-hidden>
-      <Canvas
-        key="shinsegae-glass-canvas"
-        dpr={CANVAS_DPR}
-        frameloop="demand"
-        gl={GL_OPTIONS}
-        camera={CANVAS_CAMERA}
-      >
-        <InvalidateBridge bridgeRef={invalidateRef} />
-        <GlassOrbsContent
-          bufferTexture={bufferTexture}
-          bufferVersion={bufferVersion}
-          isBufferReady={isSourceReady}
-          config={config}
-          onFirstFrameReady={onFirstFrameReady}
-          onEnvReady={handleEnvReady}
-          envSettled={envSettled}
-        />
-      </Canvas>
-
+    <>
+      <div className={styles.sceneWrap} aria-hidden>
+        <Canvas
+          key="shinsegae-glass-canvas"
+          dpr={CANVAS_DPR}
+          frameloop="demand"
+          gl={GL_OPTIONS}
+          camera={CANVAS_CAMERA}
+        >
+          <InvalidateBridge bridgeRef={invalidateRef} />
+          <GlassOrbsContent
+            bufferTexture={bufferTexture}
+            bufferVersion={bufferVersion}
+            isBufferReady={isSourceReady}
+            config={config}
+            onFirstFrameReady={onFirstFrameReady}
+            onEnvReady={handleEnvReady}
+            envSettled={envSettled}
+            journeyProgressRef={journeyProgressRef}
+            mouseTiltHoldDocYRef={mouseTiltHoldDocYRef}
+          />
+        </Canvas>
+      </div>
       {SHOW_GLASS_SCENE_CONFIG_PANEL ? (
-        <ConfigLayer config={config} onChange={setConfig} onReset={resetConfig} />
+        <GlassSceneConfigPanel config={config} onChange={setConfig} onReset={resetConfig} variant="full" />
       ) : null}
-    </div>
+    </>
   );
 };

@@ -159,6 +159,15 @@ export const MainPage = ({
    * 섹션 높이가 바뀌어도 DOM 위치만 따라가게 두면 자동으로 트리거가 맞춰진다.
    */
   const youtubeBottomRef = useRef<HTMLDivElement>(null);
+  /**
+   * 회전 슬라이드 섹션(500vh) — 문서 끝 Y 로 글래스 "스크롤 여정" 진행도·마우스 틸트 홀드 경계.
+   */
+  const rotatingSlideSectionRef = useRef<HTMLElement | null>(null);
+  const heroSectionRef = useRef<HTMLElement | null>(null);
+  /** `scrollY` > 이 값이면 전송 buffer 의 img_hero 정렬을 이 스크롤에 고정(히어로와만 1:1) */
+  const glassTextureLockScrollYRef = useRef<number | null>(null);
+  const glassJourneyProgressRef = useRef(0);
+  const glassMouseTiltHoldDocYRef = useRef<number | null>(null);
   const [isGridVisible, setIsGridVisible] = useState(true);
   const [isGlassOrbsMounted, setIsGlassOrbsMounted] = useState(GLASS_ORBS_ENABLED);
   /**
@@ -313,6 +322,38 @@ export const MainPage = ({
       sentinelAbsY = rect.top + window.scrollY;
     };
 
+    /**
+     * 회전 슬라이드 섹션의 문서 기준 [top, bottom] (레이아웃 시에만 갱신).
+     * 글래스 Y 여정(p): **스크롤 0(히어로 맨 위)에서 0** → **섹션 하단이 뷰하단에 닿을 때 1** (구간=0~(bottom-vh))
+     */
+    let rotatingSectionTopAbsY = 0;
+    let rotatingSectionBottomAbsY = 0;
+    const refreshRotatingSectionBounds = () => {
+      const el = rotatingSlideSectionRef.current;
+      if (!el) {
+        rotatingSectionTopAbsY = 0;
+        rotatingSectionBottomAbsY = 0;
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const y = window.scrollY;
+      rotatingSectionTopAbsY = rect.top + y;
+      rotatingSectionBottomAbsY = rotatingSectionTopAbsY + el.offsetHeight;
+    };
+
+    const refreshHeroTextureLock = () => {
+      const h = heroSectionRef.current;
+      if (!h) {
+        glassTextureLockScrollYRef.current = null;
+        return;
+      }
+      // `offsetTop+offsetHeight` 는 offsetParent 기준이라 문서 scrollY 와 엇갈릴 수 있음.
+      // 불변: scrollY + getBoundingClientRect().bottom = 히어로 하단이 뷰상단에 닿는 scrollY
+      const r = h.getBoundingClientRect();
+      const sy = window.scrollY;
+      glassTextureLockScrollYRef.current = sy + r.bottom;
+    };
+
     const runFrame = () => {
       scheduled = false;
       rafId = null;
@@ -320,6 +361,23 @@ export const MainPage = ({
       if (GLASS_ORBS_ENABLED) {
         const vh = window.innerHeight || 1;
         const y = window.scrollY;
+        refreshHeroTextureLock();
+
+        // p: 히어로를 내려오는 순간(스크롤 0)부터 진행, 끝은 회전 슬라이드 끝 = endScrollY
+        if (rotatingSectionBottomAbsY > rotatingSectionTopAbsY) {
+          const endScrollY = rotatingSectionBottomAbsY - vh;
+          let p: number;
+          if (endScrollY > 0) {
+            p = Math.min(1, Math.max(0, y / endScrollY));
+          } else {
+            p = 1;
+          }
+          glassJourneyProgressRef.current = p;
+          glassMouseTiltHoldDocYRef.current = rotatingSectionBottomAbsY;
+        } else {
+          glassJourneyProgressRef.current = 0;
+          glassMouseTiltHoldDocYRef.current = null;
+        }
         const unmountAt = vh * GLASS_ORBS_UNMOUNT_SCROLL_VH;
         const remountAt = vh * GLASS_ORBS_REMOUNT_SCROLL_VH;
 
@@ -386,6 +444,8 @@ export const MainPage = ({
     // 초기 sentinel 좌표 측정 — DOM 이 아직 없으면 다음 프레임에 재시도.
     const initialSentinelRead = () => {
       refreshSentinelAbsY();
+      refreshRotatingSectionBounds();
+      refreshHeroTextureLock();
       if (!Number.isFinite(sentinelAbsY)) {
         requestAnimationFrame(initialSentinelRead);
       }
@@ -398,12 +458,16 @@ export const MainPage = ({
     if (typeof ResizeObserver !== "undefined" && mainRef.current) {
       ro = new ResizeObserver(() => {
         refreshSentinelAbsY();
+        refreshRotatingSectionBounds();
+        refreshHeroTextureLock();
       });
       ro.observe(mainRef.current);
     }
 
     const handleResize = () => {
       refreshSentinelAbsY();
+      refreshRotatingSectionBounds();
+      refreshHeroTextureLock();
       schedule();
     };
 
@@ -458,7 +522,11 @@ export const MainPage = ({
                     targetRef={
                       glassOrbsVariant === "bottom" ? undefined : heroTitleRef
                     }
-                    srcFocusY={glassOrbsVariant === "bottom" ? 0.5 : 0.25}
+                    journeyProgressRef={glassJourneyProgressRef}
+                    mouseTiltHoldDocYRef={glassMouseTiltHoldDocYRef}
+                    lockTextureAtScrollYRef={
+                      glassOrbsVariant === "top" ? glassTextureLockScrollYRef : undefined
+                    }
                     onFirstFrameReady={() => {
                       setIsGlassOrbsReady(true);
                       setIsGlassRemount(false);
@@ -481,9 +549,14 @@ export const MainPage = ({
         </>
       ) : null}
       <div className={styles.foreground}>
-        <MainHero heroQuickBar={heroQuickBar} locale={locale} titleRef={heroTitleRef} />
+        <MainHero
+          heroQuickBar={heroQuickBar}
+          locale={locale}
+          titleRef={heroTitleRef}
+          sectionRef={heroSectionRef}
+        />
         <TypographyScrollSection messages={typographySection} />
-        <RotatingSlideSection />
+        <RotatingSlideSection ref={rotatingSlideSectionRef} />
         <MedicalTeamSection messages={medicalTeamSection} />
         {/* 그리드 가시 구간 경계 — AcademicPublications(#fff) 가 여기부터 시작 */}
         <div ref={gridBoundaryRef} aria-hidden style={{ width: "100%", height: 0 }} />

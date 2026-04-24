@@ -14,29 +14,15 @@
 }
 
 /*
- * R3F Canvas 래퍼 —
- *   - pinShell 가 `position: relative` 이므로 절대 좌표로 전체 채움.
- *   - -webkit-mask-image 로 좌우 끝단을 살짝 페이드 → 카드가 화면 밖으로 부드럽게 사라짐
- *     (셰이더 자체에도 uFade 가 있지만, 배경과 자연스럽게 섞이려면 마스크도 함께 유지).
- *   - pointer-events 는 Canvas 자체가 `style.pointerEvents='none'` 으로 설정.
- *     GNB / 퀵바 / 텍스트 탭 등을 방해하지 않는다.
+ * R3F Canvas — pinShell 기준 풀바운드.
+ * mask 로 화면만 "중앙 박스"에만 보이게: 투명으로 클리어된 여백이 드러나면
+ * 뒤 `body` 흰 배경이 그대로 보여 "흰 화면"이 된다(비네 div 없이 crop 만 유지).
  */
 .canvasWrap {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  /*
-   * 4방향 페이드 마스크 — canvas alpha 가 투명이라 배경과 자연스럽게 섞인다.
-   *   레이어 1 (to right) : 좌우 페이드
-   *   레이어 2 (to bottom): 상하 페이드
-   *   mask-composite: intersect → 두 레이어의 교집합만 불투명
-   *   → 4모서리 코너까지 깔끔하게 사라짐.
-   *
-   *   변수:
-   *     --slide-vignette   (기본 16%) : 좌우 페이드 폭
-   *     --slide-vignette-y (기본 12%) : 상하 페이드 폭
-   */
   -webkit-mask-image:
     linear-gradient(
       to right,
@@ -74,61 +60,6 @@
 .canvasWrap :global(canvas) {
   width: 100% !important;
   height: 100% !important;
-}
-
-/*
- * 4방향 소프트 딤 오버레이 — 배경색(--slide-section-bg)을 mask 로 가장자리에만 남긴다.
- *
- * 이전 방식(두 linear-gradient 를 background 레이어로 겹침)은 multiple backgrounds 합성
- * 규칙상 두 gradient 의 부분 투명 영역이 겹쳐, 화면 중앙에 "타원/원형 덩어리" 처럼 보이는
- * 시각적 아티팩트가 발생했다.
- *
- * 해결: 배경은 단색(--slide-section-bg) 한 장, 두 방향 mask 를 "합집합(add/source-over)"
- * 으로 합쳐 가장자리 프레임 모양만 남김 → 중앙은 투명, 네 변/모서리만 균일한 딤.
- *
- * --slide-vignette       : 좌우 페이드 폭(%)
- * --slide-vignette-y     : 상하 페이드 폭(%)
- * --slide-vignette-opacity (0~1) : 딤 강도
- */
-.vignette {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  opacity: var(--slide-vignette-opacity, 0.85);
-  background: var(--slide-section-bg, transparent);
-  -webkit-mask-image:
-    linear-gradient(
-      to right,
-      #000 0%,
-      transparent var(--slide-vignette, 16%),
-      transparent calc(100% - var(--slide-vignette, 16%)),
-      #000 100%
-    ),
-    linear-gradient(
-      to bottom,
-      #000 0%,
-      transparent var(--slide-vignette-y, 12%),
-      transparent calc(100% - var(--slide-vignette-y, 12%)),
-      #000 100%
-    );
-  -webkit-mask-composite: source-over;
-  mask-image:
-    linear-gradient(
-      to right,
-      #000 0%,
-      transparent var(--slide-vignette, 16%),
-      transparent calc(100% - var(--slide-vignette, 16%)),
-      #000 100%
-    ),
-    linear-gradient(
-      to bottom,
-      #000 0%,
-      transparent var(--slide-vignette-y, 12%),
-      transparent calc(100% - var(--slide-vignette-y, 12%)),
-      #000 100%
-    );
-  mask-composite: add;
 }
 
 .copy {
