@@ -47,23 +47,88 @@ const DEFAULT_LENS2_CONFIG: LensConfig = {
 };
 
 /**
- * 크로스페이드 트리거 — 스크롤을 이 지점(뷰포트 높이 비율) 지나면 3D → SVG 로 전환,
- * 되돌아오면 SVG → 3D 로 복귀. 스크롤에 연속 연동하지 않고 임계점 기반 토글 + CSS 트랜지션.
+ * 크로스페이드 트리거 — 스크롤 임계점 기반 토글 + CSS 트랜지션.
  *
- * `bottomFadeVh` — 페이지 맨 아래에서 이 정도 남았을 때 SVG 도 함께 사라짐 (스르륵 페이드 아웃).
+ * 상단(히어로) 구간:
+ *   - `triggerVh` — 뷰포트 이 지점 지나면 3D → SVG, 되돌아오면 SVG → 3D.
+ *
+ * 하단(페이지 끝) 구간 — "SVG → 3D → SVG → 0" 시퀀스:
+ *   페이드-인 trigger 는 DOM sentinel (유튜브 섹션 바로 뒤) 위치 기반이라
+ *   섹션 높이가 바뀌어도 anchor 가 따라간다.
+ *   - `bottomGlassFadeInVh`  — sentinel 이 뷰포트를 몇 vh 통과하는 동안 글래스가 0 → 1 로 페이드인.
+ *   - `bottomGlassFadeOutVh` — 페이지 하단 근접 시 글래스가 1 → 0 으로 페이드아웃 하는 구간 폭(vh).
+ *   - `bottomFadeVh`         — 맨 아래 남은 스크롤이 이 값 이하일 때 SVG 를 최종 페이드 0.
+ *
+ * 기본값(1080 vh 기준) 개념도:
+ *   sentinel.top >= vh          → SVG stable (글래스 0)
+ *   sentinel.top ∈ (0, vh)      → SVG ↔ Glass 크로스페이드 (fadeInVh 폭)
+ *   sentinel.top < 0, 여유 remaining → Glass hold
+ *   remaining ∈ (fade, fade+out) → Glass → SVG 크로스페이드
+ *   remaining ≤ fade            → SVG → 0
  */
 interface CrossfadeConfig {
   triggerVh: number;
   bottomFadeVh: number;
+  bottomGlassFadeInVh: number;
+  bottomGlassFadeOutVh: number;
 }
 
-// img_hero 세로 2배 확장에 맞춰 추가로 10vh 더 내려 0.25 에서 전환.
-//   (이전: 0.15 → 현재: 0.25 → 히어로 콘텐츠가 더 오래 3D 글래스로 보이고,
-//    SVG 경량 버전은 히어로 섹션이 거의 화면 밖으로 빠진 뒤에 페이드 인)
 const DEFAULT_CROSSFADE: CrossfadeConfig = {
   triggerVh: 0.25,
   bottomFadeVh: 0.25,
+  bottomGlassFadeInVh: 0.6,
+  bottomGlassFadeOutVh: 0.3,
 };
+
+/**
+ * 하단 구간 glass/svg opacity 계산.
+ *   - `sentinelTop` : 유튜브 섹션 끝 sentinel 의 `getBoundingClientRect().top` (px).
+ *                    null 이면 sentinel 못 찾음 → remaining 만 기준으로 fallback.
+ *   - glass 준비 안 됐으면 SVG 단독 페이드만 수행.
+ */
+function computeBottomOpacities(
+  sentinelTop: number | null,
+  remainingVh: number,
+  vh: number,
+  cfg: CrossfadeConfig,
+  isGlassReady: boolean,
+): { glassOpacity: number; svgOpacity: number } {
+  const bottomFade = Math.max(0.0001, cfg.bottomFadeVh);
+
+  // glass 미준비 or sentinel 미존재 → SVG 단독 페이드.
+  if (!isGlassReady || sentinelTop === null) {
+    const svg = Math.min(1, Math.max(0, remainingVh / bottomFade));
+    return { glassOpacity: 0, svgOpacity: svg };
+  }
+
+  const fadeIn = Math.max(0.0001, cfg.bottomGlassFadeInVh);
+  const fadeOut = Math.max(0.0001, cfg.bottomGlassFadeOutVh);
+  const fadeInPx = fadeIn * vh;
+  const fadeOutVh = fadeOut;
+
+  // Fade-in progress — sentinel 이 뷰포트를 통과하는 정도로 계산.
+  //   sentinel.top >= vh         → inProgress=0 (sentinel 이 아직 뷰포트 밑)
+  //   sentinel.top ∈ (vh - fadeIn*vh, vh) → 선형 보간
+  //   sentinel.top <= vh - fadeIn*vh      → inProgress=1 (완전히 통과)
+  const inProgress = Math.min(1, Math.max(0, (vh - sentinelTop) / fadeInPx));
+
+  // Fade-out progress — 페이지 하단 remaining 이 (fade, fade+fadeOut) 구간일 때 1→0.
+  //   remaining >= fade + fadeOut → outProgress=1 (아직 멀음)
+  //   remaining = fade            → outProgress=0 (fade out 완료)
+  const outProgress = Math.min(
+    1,
+    Math.max(0, (remainingVh - bottomFade) / fadeOutVh),
+  );
+
+  const glassOpacity = Math.min(inProgress, outProgress);
+  // SVG: 하단 최종 페이드 구간에선 remaining 기반으로 감쇠, 아니면 glass 의 보수값.
+  const svgOpacity =
+    remainingVh <= bottomFade
+      ? Math.min(1, Math.max(0, remainingVh / bottomFade))
+      : 1 - glassOpacity;
+
+  return { glassOpacity, svgOpacity };
+}
 /** 역방향(아래→위) 복귀 시 idle apply 스케줄링 여유 (스크롤 이벤트 종료 감지용) */
 const REVERSE_HANDOFF_IDLE_MS = 140;
 
@@ -258,10 +323,23 @@ interface SvgGlassOverlayProps {
   isRemount?: boolean;
   /** glassReady가 true 로 전환되어 핸드오프가 완료됐을 때 부모에 알림 */
   onGlassReady?: () => void;
+  /**
+   * 유튜브 섹션 바로 뒤에 꽂은 0px sentinel ref.
+   * 하단 SVG → 3D 글래스 페이드-인이 "언제 시작할지" 를 이 sentinel 의
+   * `getBoundingClientRect().top` 으로 anchor 한다.
+   * 생략 시 하단 글래스 시퀀스가 비활성(기존 SVG 단독 페이드로 fallback).
+   */
+  bottomGlassAnchorRef?: RefObject<HTMLDivElement | null>;
 }
 
 export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(function SvgGlassOverlay(
-  { glassLayerRef, glassReady = true, isRemount = false, onGlassReady },
+  {
+    glassLayerRef,
+    glassReady = true,
+    isRemount = false,
+    onGlassReady,
+    bottomGlassAnchorRef,
+  },
   ref,
 ) {
   const [lens1, setLens1] = useState<LensConfig>(DEFAULT_LENS1_CONFIG);
@@ -343,42 +421,19 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
 
     const compute = () => {
       const isGlassReady = glassReadyRef.current;
-      /**
-       * 글래스 미준비 구간 처리:
-       *   - 첫 로드(!isRemount): GSAP 인트로가 글래스를 담당 → SvgGlassOverlay는
-       *     glassLayerRef/SVG 를 건드리지 않는다(null 반환).
-       *   - 역방향 리마운트(isRemount): 글래스가 준비될 때까지 SVG를 즉시 노출.
-       *     glassReady=true가 되면 이 분기를 벗어나 정상 크로스페이드로 전환.
-       */
-      if (!isGlassReady) {
-        if (!isRemountRef.current) {
-          return null; // 첫 로드 — 아무것도 건드리지 않음
-        }
-        // 역방향 — SVG 즉시 노출, 글래스 레이어 숨김
-        return { glassOpacity: 0, svgOpacity: 1, isAtTop: true };
-      }
-
-      // 글래스가 막 준비됐으면(isRemount 후 첫 ready) 부모에 단발성 알림.
-      // ref 를 즉시 false 로 내려 스크롤 틱마다 반복 호출되는 것을 방지.
-      if (isRemountRef.current) {
-        isRemountRef.current = false;
-        onGlassReadyRef.current?.();
-      }
-
       const vh = window.innerHeight || 1;
-      const { triggerVh, bottomFadeVh } = crossfadeRef.current;
+      const cfg = crossfadeRef.current;
+      const { triggerVh } = cfg;
       const y = window.scrollY;
       const now = performance.now();
       const triggerPx = vh * triggerVh;
-      const bottomPx = Math.max(1, vh * bottomFadeVh);
 
       const docHeight = Math.max(
         document.documentElement.scrollHeight,
         document.body.scrollHeight,
       );
       const remaining = docHeight - (y + vh);
-      // 하단 페이드 계수(0..1) — 남은 스크롤이 bottomPx 에 들어서면 1→0 으로 선형 감소.
-      const bottomFactor = Math.min(1, Math.max(0, remaining / bottomPx));
+      const remainingVh = remaining / vh;
 
       const isAtTop = y < triggerPx;
       const delta = y - prevScrollYRef.current;
@@ -391,24 +446,49 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         reverseHandoffPendingRef.current = true;
       }
 
-      // 역방향으로 top 트리거에 재진입했을 때는
-      // "glassReady=true 되는 즉시" SVG -> 3D 로 전환한다.
-      const waitingReverseHandoff =
-        isAtTop && wasBelowTriggerRef.current && reverseHandoffPendingRef.current;
-      const canShowGlassAtTop = isGlassReady;
-
-      // 상단 구간에서 3D가 아직 준비되지 않았거나(또는 역방향에서 스크롤 미정지) SVG를 유지.
-      const glassOpacity = isAtTop ? (canShowGlassAtTop ? 1 : 0) : 0;
-      // SVG 는 트리거를 넘으면 1 을 기본으로 하되, 하단 근접 시 bottomFactor 로 감쇠.
-      // 단, 상단 구간에서도 3D 준비/정지 조건 전에는 1 유지.
-      const svgOpacity = isAtTop ? (canShowGlassAtTop ? 0 : 1) : bottomFactor;
-
-      if (isAtTop && canShowGlassAtTop) {
-        // 핸드오프 완료: 이후 상단 미세 스크롤엔 대기 조건을 다시 강제하지 않음
-        reverseHandoffPendingRef.current = false;
-        wasBelowTriggerRef.current = false;
+      /**
+       * 글래스 미준비 구간 처리 (상단):
+       *   - 히어로 첫 로드: GSAP 인트로가 담당 → null 반환으로 SVG/glassLayer 를 건드리지 않음.
+       *   - 상단에서 역방향 리마운트: 글래스가 준비될 때까지 SVG 를 즉시 노출.
+       * 하단은 `computeBottomOpacities` 에서 isGlassReady 가 false 면 자동으로 SVG 단독 페이드
+       * 로 fallback 하므로 별도 분기 없이 동일 공식 사용 → "미드스크롤 새로고침" 대응도 유지.
+       */
+      if (!isGlassReady && isAtTop && !isRemountRef.current) {
+        return null; // 히어로 구간 첫 로드 — GSAP 담당
       }
 
+      // 글래스가 막 준비됐으면(isRemount 후 첫 ready) 부모에 단발성 알림.
+      // ref 를 즉시 false 로 내려 스크롤 틱마다 반복 호출되는 것을 방지.
+      if (isGlassReady && isRemountRef.current) {
+        isRemountRef.current = false;
+        onGlassReadyRef.current?.();
+      }
+
+      if (isAtTop) {
+        // 상단(히어로) 구간 — 기존 로직 유지.
+        const canShowGlassAtTop = isGlassReady;
+        const glassOpacity = canShowGlassAtTop ? 1 : 0;
+        const svgOpacity = canShowGlassAtTop ? 0 : 1;
+        if (canShowGlassAtTop) {
+          // 핸드오프 완료: 이후 상단 미세 스크롤엔 대기 조건을 다시 강제하지 않음
+          reverseHandoffPendingRef.current = false;
+          wasBelowTriggerRef.current = false;
+        }
+        return { glassOpacity, svgOpacity, isAtTop };
+      }
+
+      // 하단(비-히어로) 구간 — sentinel 기반 시퀀스:
+      //   SVG stable → SVG→Glass → Glass hold → Glass→SVG → SVG→0
+      // 글래스가 준비되지 않았거나(모바일 등) sentinel 이 없으면 SVG 단독 페이드로 fallback.
+      const sentinel = bottomGlassAnchorRef?.current ?? null;
+      const sentinelTop = sentinel ? sentinel.getBoundingClientRect().top : null;
+      const { glassOpacity, svgOpacity } = computeBottomOpacities(
+        sentinelTop,
+        remainingVh,
+        vh,
+        cfg,
+        isGlassReady,
+      );
       return { glassOpacity, svgOpacity, isAtTop };
     };
 
@@ -494,7 +574,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         clearTimeout(idleApplyTimer);
       }
     };
-  }, [glassLayerRef]);
+  }, [glassLayerRef, bottomGlassAnchorRef]);
 
   /**
    * glassReady / isRemount / crossfade 값이 바뀔 때 즉시 재계산.
@@ -508,52 +588,65 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     const svgTarget = overlayRef.current;
     const glassTarget = glassLayerRef?.current ?? null;
 
-    if (!glassReady) {
-      if (!isRemount) return; // 첫 로드 — 건드리지 않음
+    const vh = window.innerHeight || 1;
+    const y = window.scrollY;
+    const triggerPx = vh * crossfade.triggerVh;
+    const docHeight = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight,
+    );
+    const remaining = docHeight - (y + vh);
+    const remainingVh = remaining / vh;
+    const isAtTop = y < triggerPx;
 
-      // 역방향 대기 — SVG 즉시 보이기, 글래스 레이어 즉시 숨기기
+    const sentinel = bottomGlassAnchorRef?.current ?? null;
+    const sentinelTop = sentinel ? sentinel.getBoundingClientRect().top : null;
+
+    if (!glassReady) {
+      // 히어로 첫 로드(isAtTop + !isRemount) 는 GSAP 담당 → 건드리지 않음.
+      if (isAtTop && !isRemount) return;
+
+      // 그 외(히어로 밖 mid-scroll reload, 역방향 리마운트, 하단 글래스 마운트 대기 등):
+      // SVG 를 즉시 노출하고 글래스 레이어는 숨김.
+      const { svgOpacity } = computeBottomOpacities(
+        sentinelTop,
+        remainingVh,
+        vh,
+        crossfade,
+        false,
+      );
       if (glassTarget) {
         glassTarget.style.opacity = "0";
-        glassTarget.style.zIndex = "3";
-        // opacity 0으로 전환 후 transitionend가 visibility 를 hidden 으로 내림.
-        // 단, 이미 hidden 이라면 transition이 발화하지 않으므로 직접 내림.
-        if (glassTarget.style.visibility === "hidden") {
-          // already hidden — no-op
-        } else {
-          // CSS transition(280ms)이 페이드아웃 후 transitionend 에서 hidden 처리.
-        }
+        glassTarget.style.zIndex = isAtTop ? "3" : "1";
       }
       if (svgTarget) {
         svgTarget.style.visibility = "visible";
-        svgTarget.style.opacity = "1";
+        svgTarget.style.opacity = (isAtTop ? 1 : svgOpacity).toFixed(3);
       }
       return;
     }
 
-    // glassReady = true 로 전환된 시점.
-    // 스크롤 핸드오프 경로와 동일하게 isRemountRef 를 즉시 초기화한다.
+    // glassReady = true 로 전환된 시점 — 스크롤 핸드오프 경로와 동일하게 ref 초기화.
     if (isRemountRef.current) {
       isRemountRef.current = false;
       onGlassReadyRef.current?.();
     }
 
-    // 역방향 리마운트 후 글래스가 준비됐으면 부드럽게 글래스로 전환한다.
-    const vh = window.innerHeight || 1;
-    const y = window.scrollY;
-    const triggerPx = vh * crossfade.triggerVh;
-    const bottomPx = Math.max(1, vh * crossfade.bottomFadeVh);
-    const docHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
-    const remaining = docHeight - (y + vh);
-    const bottomFactor = Math.min(1, Math.max(0, remaining / bottomPx));
-    const isAtTop = y < triggerPx;
-
     if (!isAtTop) {
       wasBelowTriggerRef.current = true;
       reverseHandoffPendingRef.current = true;
     }
-    const canShowGlassAtTop = true; // glassReady=true 이므로 무조건 가능
-    const glassOpacity = isAtTop ? 1 : 0;
-    const svgOpacity = isAtTop ? 0 : bottomFactor;
+
+    // 상단이면 glass=1 / svg=0, 하단이면 sentinel + remaining 기반 공식.
+    const bottom = computeBottomOpacities(
+      sentinelTop,
+      remainingVh,
+      vh,
+      crossfade,
+      true,
+    );
+    const glassOpacity = isAtTop ? 1 : bottom.glassOpacity;
+    const svgOpacity = isAtTop ? 0 : bottom.svgOpacity;
 
     if (isAtTop) {
       reverseHandoffPendingRef.current = false;
@@ -561,7 +654,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     }
 
     if (glassTarget) {
-      // hidden → visible 복귀 시 CSS transition이 발화하려면
+      // hidden → visible 복귀 시 CSS transition 이 발화하려면
       // visibility 먼저 visible 로 올린 뒤 한 프레임 후 opacity 셋팅.
       if (glassOpacity > 0) {
         const wasHidden = glassTarget.style.visibility === "hidden";
@@ -585,7 +678,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       svgTarget.style.opacity = svgOpacity.toFixed(3);
       svgTarget.style.visibility = "visible";
     }
-  }, [crossfade, glassLayerRef, glassReady, isRemount]);
+  }, [crossfade, glassLayerRef, glassReady, isRemount, bottomGlassAnchorRef]);
 
   return (
     <>

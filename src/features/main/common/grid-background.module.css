@@ -7,21 +7,12 @@
   background: transparent;
 }
 
-/* 평소 / 스크롤 멈춤 */
+/* 고정 gradient — 스크롤 중/정지 구분 없이 일정한 톤을 유지.
+   글래스 렌즈 투과 이미지는 정적이므로 배경도 정적이어야 렌즈 안/밖 톤이 매칭된다. */
 .baseWash {
   position: absolute;
   inset: 0;
   background: linear-gradient(135deg, #9b82bc 0%, #c99ca7 100%);
-}
-
-/* 스크롤 중 */
-.scrollPink {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0;
-  background: #c99ca7;
-  mix-blend-mode: normal;
 }
 
 .gridSvg {
@@ -44,7 +35,6 @@
 
 .glowLayer {
   opacity: 0.9;
-  transition: opacity 0.35s ease;
 }
 
 .glowCell {
@@ -74,10 +64,7 @@
 }
 
 
-/* 스크롤 중 반짝임 부드럽게 페이드아웃 */
-.background[data-scrolling] .glowLayer {
-  opacity: 0;
-}
+/* 스크롤 중/정지 무관 — 배경 톤을 일정하게 유지해 글래스 투과 이미지와 맞춤 */
 
 @media (prefers-reduced-motion: reduce) {
   .glowCell {

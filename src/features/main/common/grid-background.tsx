@@ -1,7 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  forwardRef,
+} from "react";
+import type { CSSProperties, MutableRefObject } from "react";
 import styles from "./grid-background.module.css";
 
 const CELL_SIZE_REM = 8.75;
@@ -50,72 +58,109 @@ const CURVE_DEPTH_PX = 40;
 const MAX_SEGMENT_COUNT = 32;
 
 export type GridBackgroundProps = {
+  /**
+   * 스크롤 hot 플래그. 더 이상 배경 색상을 바꾸는 데 쓰지 않고
+   * `.glowLayer` 페이드아웃(스크롤 중 반짝임 숨김) 에만 사용된다.
+   * 스크롤 중/정지 간 색상 톤 이질감이 글래스 렌즈 투과 이미지와 어긋나 보여 제거함.
+   */
   scrollHot?: boolean;
   visible?: boolean;
 };
 
-const PINK_LERP = 0.045;
-const PINK_OUT_LERP = 0.032;
+// ── 가로 라인 워프 — React state 경유 없이 SVG path `d` 를 직접 업데이트 ────────
+// 과거엔 curveRatio/scrollWarpMode 를 state 로 올려 매 프레임 re-render 했는데,
+// setState 디핑/커밋 비용이 스크롤 부하를 만들었다.
+// 이 컴포넌트는 yStops/width 변경 때만 DOM 트리를 재생성하고,
+// 워프 애니메이션은 부모가 `tickerRef.current()` 만 호출하면
+// 내부에서 `path.setAttribute("d", ...)` 로 즉시 그린다. → React 관여 0.
+interface HLinesHandle {
+  /** 현재 refs(currentRef, modeRef) 로 즉시 다시 그린다. */
+  rebuild: () => void;
+}
 
-// ── 가로 라인만 curveRatio 에 의존하는 분리된 컴포넌트 ─────────────────────────
-// GridBackground 전체가 아닌 이 컴포넌트만 스크롤마다 re-render 된다.
-// glowCells·verticalPaths·cells 는 curveRatio 와 무관해 재계산되지 않는다.
 interface HLinesProps {
-  curveRatio: number;
-  scrollWarpMode: "down" | "up";
   yStops: number[];
   width: number;
   cellSizePx: number;
+  /** 현재 curveRatio (-1..1). 부모 RAF 루프에서 계속 갱신. */
+  currentRef: MutableRefObject<number>;
+  /** 현재 워프 방향. 부모 스크롤 핸들러가 갱신. */
+  modeRef: MutableRefObject<"down" | "up">;
 }
 
-function HorizontalLinesLayer({ curveRatio, scrollWarpMode, yStops, width, cellSizePx }: HLinesProps) {
-  const paths = useMemo(() => {
-    if (Math.abs(curveRatio) < EPSILON) {
-      return yStops.map((y) => `M 0 ${y} L ${width} ${y}`);
-    }
-    const segCount = Math.min(MAX_SEGMENT_COUNT, Math.max(16, Math.ceil(width / cellSizePx) * 4));
-    const dir = scrollWarpMode === "down" ? -1 : 1;
-    const eased = Math.pow(Math.abs(curveRatio), 0.85);
+const HorizontalLinesLayer = forwardRef<HLinesHandle, HLinesProps>(function HorizontalLinesLayer(
+  { yStops, width, cellSizePx, currentRef, modeRef },
+  ref,
+) {
+  const pathRefs = useRef<Array<SVGPathElement | null>>([]);
 
-    return yStops.map((y) => {
-      const parts: string[] = [];
-      for (let s = 0; s <= segCount; s++) {
-        const x = (width * s) / segCount;
-        const xNorm = (x / Math.max(1, width)) * 2 - 1;
-        const arc = Math.max(0, 1 - xNorm * xNorm);
-        const dy = arc * eased * CURVE_DEPTH_PX * dir;
-        parts.push(`${s === 0 ? "M" : "L"} ${x} ${y + dy}`);
+  // 현재 상태로 각 path 의 `d` 속성을 즉시 갱신한다.
+  // 세그먼트 수는 뷰포트 가로에 따라 달라지므로 closure 로 고정.
+  const rebuild = useCallback(() => {
+    const ratio = currentRef.current;
+    const absRatio = Math.abs(ratio);
+    const segCount = Math.min(
+      MAX_SEGMENT_COUNT,
+      Math.max(16, Math.ceil(width / cellSizePx) * 4),
+    );
+    const dir = modeRef.current === "down" ? -1 : 1;
+    const eased = Math.pow(absRatio, 0.85);
+    const magnitude = eased * CURVE_DEPTH_PX * dir;
+    const invW = 1 / Math.max(1, width);
+
+    for (let i = 0; i < yStops.length; i++) {
+      const path = pathRefs.current[i];
+      if (!path) continue;
+      const y = yStops[i];
+      let d: string;
+      if (absRatio < EPSILON) {
+        // 직선 — 문자열 간단 경로. 브라우저 파서 부담 ↓.
+        d = `M 0 ${y} L ${width} ${y}`;
+      } else {
+        const parts: string[] = [];
+        for (let s = 0; s <= segCount; s++) {
+          const x = (width * s) / segCount;
+          const xNorm = x * invW * 2 - 1;
+          const arc = Math.max(0, 1 - xNorm * xNorm);
+          const dy = arc * magnitude;
+          parts.push(`${s === 0 ? "M" : "L"} ${x.toFixed(1)} ${(y + dy).toFixed(2)}`);
+        }
+        d = parts.join(" ");
       }
-      return parts.join(" ");
-    });
-  }, [curveRatio, scrollWarpMode, yStops, width, cellSizePx]);
+      path.setAttribute("d", d);
+    }
+  }, [yStops, width, cellSizePx, currentRef, modeRef]);
+
+  useImperativeHandle(ref, () => ({ rebuild }), [rebuild]);
+
+  // yStops/width 변경 시(리사이즈) 즉시 1회 재계산 — 초기 마운트 포함.
+  useEffect(() => {
+    rebuild();
+  }, [rebuild]);
 
   return (
     <>
-      {paths.map((d, i) => (
-        <path key={`hline-${i}`} d={d} className={styles.line} />
+      {yStops.map((_, i) => (
+        <path
+          key={`hline-${i}`}
+          ref={(el) => {
+            pathRefs.current[i] = el;
+          }}
+          className={styles.line}
+        />
       ))}
     </>
   );
-}
+});
 
 export function GridBackground({ scrollHot = false, visible = true }: GridBackgroundProps) {
   const backgroundRef = useRef<HTMLDivElement>(null);
-  const pinkOverlayRef = useRef<HTMLDivElement>(null);
-  const overlayRafRef = useRef(0);
-  const scrollHotRef = useRef(false);
-  const pinkSmoothedRef = useRef(0);
-  const pinkStartRef = useRef<(() => void) | null>(null);
-
   const visibleRef = useRef(visible);
   const scrollWarpModeRef = useRef<"down" | "up">("down");
   const rafRef = useRef<number | null>(null);
   const targetRef = useRef(0);
   const currentRef = useRef(0);
-
-  // 가로 라인 워프: state 로 관리 → HorizontalLinesLayer 만 re-render
-  const [curveRatio, setCurveRatio] = useState(0);
-  const [scrollWarpMode, setScrollWarpMode] = useState<"down" | "up">("down");
+  const hLinesHandleRef = useRef<HLinesHandle | null>(null);
 
   const [size, setSize] = useState({ width: 0, height: 0 });
 
@@ -136,23 +181,14 @@ export function GridBackground({ scrollHot = false, visible = true }: GridBackgr
   }, []);
 
   useEffect(() => {
-    scrollHotRef.current = scrollHot;
-    if (scrollHot) pinkStartRef.current?.();
-  }, [scrollHot]);
-
-  useEffect(() => {
     visibleRef.current = visible;
     if (!visible) {
       // 히어로를 벗어나는 순간 워프를 즉시 직선으로 복귀
       currentRef.current = 0;
       targetRef.current = 0;
-      setCurveRatio(0);
+      hLinesHandleRef.current?.rebuild();
     }
   }, [visible]);
-
-  useEffect(() => {
-    scrollWarpModeRef.current = scrollWarpMode;
-  }, [scrollWarpMode]);
 
   // ── 스크롤 워프 RAF ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -164,20 +200,26 @@ export function GridBackground({ scrollHot = false, visible = true }: GridBackgr
       const now = performance.now();
       const isScrolling = now - lastScrollTime < SCROLL_IDLE_MS;
 
+      // 스크롤 중 ±1, 멈추면 0 으로 감쇠. 히어로 밖(visible=false)이면 강제로 0.
       const activeDir = scrollWarpModeRef.current === "down" ? -1 : 1;
-      // 워프 임시 비활성화
-      targetRef.current = 0;
+      targetRef.current = isScrolling && visibleRef.current ? activeDir : 0;
 
       currentRef.current += (targetRef.current - currentRef.current) * CURVE_SMOOTH;
 
-      if (!isScrolling && Math.abs(targetRef.current) < EPSILON && Math.abs(currentRef.current) < EPSILON) {
+      if (
+        !isScrolling &&
+        Math.abs(targetRef.current) < EPSILON &&
+        Math.abs(currentRef.current) < EPSILON
+      ) {
         currentRef.current = 0;
       }
 
-      setCurveRatio(currentRef.current);
+      // React state 를 쓰지 않고 path.setAttribute 로 직접 갱신.
+      hLinesHandleRef.current?.rebuild();
 
       const deltaToTarget = Math.abs(targetRef.current - currentRef.current);
-      const stillMoving = deltaToTarget > EPSILON || Math.abs(targetRef.current) > EPSILON || isScrolling;
+      const stillMoving =
+        deltaToTarget > EPSILON || Math.abs(targetRef.current) > EPSILON || isScrolling;
 
       if (stillMoving) {
         rafRef.current = requestAnimationFrame(tick);
@@ -187,6 +229,7 @@ export function GridBackground({ scrollHot = false, visible = true }: GridBackgr
     };
 
     const startLoop = () => {
+      if (!visibleRef.current) return; // 히어로 밖이면 RAF 자체를 돌리지 않음
       if (!isRunning) {
         isRunning = true;
         rafRef.current = requestAnimationFrame(tick);
@@ -201,12 +244,11 @@ export function GridBackground({ scrollHot = false, visible = true }: GridBackgr
       if (currentScrollY < 0) return;
       if (Math.abs(delta) < 0.2) return;
 
+      // 방향 플립만 ref 갱신 (state 없음 → 재렌더 없음).
       if (delta > MODE_SWITCH_DELTA_THRESHOLD) {
         scrollWarpModeRef.current = "down";
-        setScrollWarpMode("down");
       } else if (delta < -MODE_SWITCH_DELTA_THRESHOLD) {
         scrollWarpModeRef.current = "up";
-        setScrollWarpMode("up");
       }
 
       lastScrollTime = performance.now();
@@ -220,43 +262,9 @@ export function GridBackground({ scrollHot = false, visible = true }: GridBackgr
     };
   }, []);
 
-  // ── 핑크 오버레이 RAF ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const PINK_STABLE_EPS = 0.001;
-    let running = false;
-
-    const tick = () => {
-      const pinkTarget = scrollHotRef.current ? 1 : 0;
-      const pinkK = pinkTarget > pinkSmoothedRef.current ? PINK_LERP : PINK_OUT_LERP;
-      pinkSmoothedRef.current += (pinkTarget - pinkSmoothedRef.current) * pinkK;
-
-      const pinkEl = pinkOverlayRef.current;
-      if (pinkEl) pinkEl.style.opacity = String(clamp(pinkSmoothedRef.current, 0, 1));
-
-      const delta = Math.abs(pinkTarget - pinkSmoothedRef.current);
-      if (delta < PINK_STABLE_EPS && pinkTarget === 0) {
-        if (pinkEl) pinkEl.style.opacity = "0";
-        pinkSmoothedRef.current = 0;
-        running = false;
-        return;
-      }
-      overlayRafRef.current = requestAnimationFrame(tick);
-    };
-
-    const start = () => {
-      if (running) return;
-      running = true;
-      overlayRafRef.current = requestAnimationFrame(tick);
-    };
-    pinkStartRef.current = start;
-    start();
-
-    return () => {
-      cancelAnimationFrame(overlayRafRef.current);
-      pinkStartRef.current = null;
-      running = false;
-    };
-  }, []);
+  // ── 핑크 오버레이 RAF ── (제거됨)
+  // 스크롤 중/정지 전환 시 배경 톤이 바뀌어 글래스 렌즈 투과 이미지와 미세하게 이질감이 발생.
+  // baseWash(고정 gradient) 만 남기고 scrollHot 으로 트리거되던 색상 보간을 삭제했다.
 
   const width = Math.max(1, size.width);
   const height = Math.max(1, size.height);
@@ -316,12 +324,10 @@ export function GridBackground({ scrollHot = false, visible = true }: GridBackgr
     <div
       ref={backgroundRef}
       className={styles.background}
-      data-scrolling={scrollHot || undefined}
       data-hidden={!visible || undefined}
       aria-hidden
     >
       <div className={styles.baseWash} />
-      <div ref={pinkOverlayRef} className={styles.scrollPink} />
       <svg className={styles.gridSvg} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
         <g className={styles.glowLayer}>
           {(glowCells.length > 0
@@ -336,13 +342,14 @@ export function GridBackground({ scrollHot = false, visible = true }: GridBackgr
           ))}
         </g>
         <g className={styles.lineLayer}>
-          {/* 가로 라인: 워프 계산을 분리된 컴포넌트에서만 처리 */}
+          {/* 가로 라인: path.setAttribute 로 직접 업데이트, state 경유 없음 */}
           <HorizontalLinesLayer
-            curveRatio={curveRatio}
-            scrollWarpMode={scrollWarpMode}
+            ref={hLinesHandleRef}
             yStops={yStops}
             width={width}
             cellSizePx={cellSizePx}
+            currentRef={currentRef}
+            modeRef={scrollWarpModeRef}
           />
           {/* 세로 라인: 항상 직선 */}
           {verticalPaths.map((d, i) => (

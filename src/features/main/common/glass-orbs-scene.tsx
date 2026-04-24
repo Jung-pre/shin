@@ -740,6 +740,7 @@ const MouseTiltGroup = ({
   const groupRef = useRef<ThreeGroup>(null);
   const target = useRef({ x: 0, y: 0 });
   const lastMouse = useRef({ x: -1, y: -1, seen: false });
+  const wasVisibleRef = useRef(false);
   const invalidate = useThree((state) => state.invalidate);
 
   useEffect(() => {
@@ -752,11 +753,32 @@ const MouseTiltGroup = ({
       const nx = (lastMouse.current.x / w) * 2 - 1;
       const ny = (lastMouse.current.y / h) * 2 - 1;
       const scrollY = window.scrollY || 0;
-      const fade = Math.max(0, 1 - scrollY / (h * scrollFadeVh));
+      // 상단 히어로 구간에선 scrollY 기준으로, 하단 피날레 구간에선 남은 스크롤 기준으로
+      // 각각 fade 를 계산하고 둘 중 큰 값을 쓴다 → 두 구간 모두 tilt 가 살아있음.
+      const topFade = Math.max(0, 1 - scrollY / (h * scrollFadeVh));
+      const docH =
+        typeof document !== "undefined"
+          ? Math.max(
+              document.documentElement.scrollHeight,
+              document.body.scrollHeight,
+            )
+          : 0;
+      const remaining = Math.max(0, docH - (scrollY + h));
+      const bottomFade = Math.max(0, 1 - remaining / (h * scrollFadeVh));
+      const fade = Math.max(topFade, bottomFade);
       // y-mouse 는 반전 — 커서가 위로 가면 렌즈 윗면이 카메라를 향하도록
       target.current.x = -ny * maxTiltRad * fade;
       target.current.y = nx * maxTiltRad * fade;
-      invalidate();
+
+      // Invalidate 가드: 글래스가 보이지 않는 구간(fade≈0)에서는 render 를 깨우지 않음.
+      //   · 상시 마운트 + demand frameloop 조합에서 idle 상태(0 fps)를 유지하는 핵심.
+      //   · visible→hidden 전환 직후에만 1회 invalidate 해서 useFrame 이 rotation 을
+      //     0 으로 lerp 하게 하고, 그 다음 프레임부턴 useFrame 자체 가드에 위임.
+      const visible = fade > 0.001;
+      if (visible || wasVisibleRef.current) {
+        invalidate();
+      }
+      wasVisibleRef.current = visible;
     };
 
     const handleMove = (event: MouseEvent) => {
@@ -942,7 +964,12 @@ interface GlassOrbsContentProps {
   bufferVersion: number;
   isBufferReady: boolean;
   config: SceneConfig;
+  /** 모든 렌더 에셋(텍스처 + HDR env) 준비가 끝나 2프레임 이상 렌더됐을 때 1회 호출 */
   onFirstFrameReady?: () => void;
+  /** env 가 필요한 경우, Suspense 해제 후 한번 호출되는 내부 신호 */
+  onEnvReady?: () => void;
+  /** env 가 필요 없거나 이미 준비됨. FirstFrameReady 게이트를 열 때 쓴다. */
+  envSettled: boolean;
 }
 
 function GlassOrbsContent({
@@ -951,21 +978,30 @@ function GlassOrbsContent({
   isBufferReady,
   config,
   onFirstFrameReady,
+  onEnvReady,
+  envSettled,
 }: GlassOrbsContentProps) {
   if (!bufferTexture || !isBufferReady) return null;
 
   return (
     <>
       <ContextLossGuard />
-      <FirstFrameReady onReady={onFirstFrameReady} />
+      {/* FirstFrameReady 는 envSettled(=env 가 꺼져있거나 이미 로드됨) 일 때만 프레임 카운트 시작.
+          모든 레이어(버퍼 이미지 + HDR env + 유리)가 한 화면에 놓인 뒤에 ready 신호를 쏘므로,
+          SvgGlassOverlay 크로스페이드가 "부분만 먼저 나오는" 단계 없이 한번에 전환된다. */}
+      <FirstFrameReady enabled={envSettled} onReady={onFirstFrameReady} />
       {/* HDR env 가 ON 이면 그쪽이 우선. OFF 일 때는 경량 Rim env 가 유리 엣지에 색을 깔아 준다. */}
       {config.envEnabled ? (
         <Suspense fallback={null}>
           <SceneEnvironment config={config} />
+          {/* Suspense 가 해제되면 이 sentinel 이 마운트되면서 envReady 를 쏜다.
+              HDR 이 도착해야 반사가 제대로 보이므로 이 시점까지 ready 를 보류. */}
+          <EnvReadySentinel onReady={onEnvReady} />
         </Suspense>
       ) : config.rimEnabled ? (
         <Suspense fallback={null}>
           <RimEnvironment config={config} />
+          <EnvReadySentinel onReady={onEnvReady} />
         </Suspense>
       ) : null}
       <SceneLights config={config} />
@@ -979,13 +1015,50 @@ interface FirstFrameReadyProps {
   onReady?: () => void;
 }
 
+/**
+ * 모든 의존성이 준비된 뒤 "실제로 몇 프레임 그려졌을 때" onReady 를 1회 호출.
+ *
+ * 단일 프레임만으로는 HDR PMREM 굽기·버퍼 텍스처 업로드 직후 타이밍이라서
+ * 화면이 아직 안정되지 않은 경우가 있다. 2프레임 이상 그린 뒤 신호를 보내면
+ * 크로스페이드 시점에 유리·반사·배경이 모두 제자리에 있어 한 덩어리로 나타난다.
+ */
 const FirstFrameReady = ({ enabled = true, onReady }: FirstFrameReadyProps) => {
   const firedRef = useRef(false);
+  const framesRef = useRef(0);
+  const invalidate = useThree((state) => state.invalidate);
+
+  // enabled 가 true 로 바뀌는 순간 demand frameloop 에서도 다음 프레임이 돌도록
+  // invalidate 를 한 번 걸어 주고, 카운터가 2에 도달할 때까지 계속 다음 프레임을 예약.
+  useEffect(() => {
+    if (enabled && !firedRef.current) invalidate();
+  }, [enabled, invalidate]);
+
   useFrame(() => {
     if (!enabled || firedRef.current || !onReady) return;
+    framesRef.current += 1;
+    if (framesRef.current < 2) {
+      invalidate();
+      return;
+    }
     firedRef.current = true;
     onReady();
   });
+  return null;
+};
+
+interface EnvReadySentinelProps {
+  onReady?: () => void;
+}
+
+/**
+ * Suspense 경계 안에 둘 때, 해당 Suspense 가 해제되어야만 마운트된다.
+ * → `<SceneEnvironment>` 이 HDR 로드 완료로 언서스펜드되는 순간 이 useEffect 가
+ *   발화하므로 "env 가 실제 scene.environment 로 들어간 시점" 을 잡는 간단한 신호로 쓸 수 있다.
+ */
+const EnvReadySentinel = ({ onReady }: EnvReadySentinelProps) => {
+  useEffect(() => {
+    onReady?.();
+  }, [onReady]);
   return null;
 };
 
@@ -1130,6 +1203,11 @@ export interface GlassOrbsSceneProps {
    * 지정하면 렌즈 속 글자와 실제 DOM 글자 위치가 1:1 정합됨.
    */
   targetRef?: RefObject<HTMLElement | null>;
+  /**
+   * 소스 이미지 내부의 세로 포커스 (0~1). 기본 0.25 (img_hero.webp 상단 1/4 지점).
+   * 다른 이미지(예: img_frame.webp) 를 쓸 땐 0.5 로 지정해 정중앙을 렌즈 중심에 둔다.
+   */
+  srcFocusY?: number;
   /** 3D 글래스가 첫 렌더 프레임을 그렸을 때 호출 */
   onFirstFrameReady?: () => void;
 }
@@ -1146,6 +1224,7 @@ const SHOW_GLASS_SCENE_CONFIG_PANEL = false;
 export const GlassOrbsScene = ({
   sourceImageUrl = DEFAULT_SOURCE_IMAGE,
   targetRef,
+  srcFocusY = 0.25,
   onFirstFrameReady,
 }: GlassOrbsSceneProps) => {
   const [config, setConfig] = useState<SceneConfig>(DEFAULT_CONFIG);
@@ -1166,10 +1245,25 @@ export const GlassOrbsScene = ({
       // img_hero.webp 가 원본 대비 세로 2배(1920×2000)로 확장되면서 실제 히어로 콘텐츠가
       // 이미지 상단 절반(0~1000) 에 몰려 있음. 따라서 콘텐츠 중심(=전체의 1/4 지점) 을
       // 렌즈 포커스로 잡아야 글래스 안에 "신세계안과" 타이틀이 정렬되어 보인다.
-      // 기본(0.5) 을 쓰면 확장된 빈 하단이 렌즈 중앙에 들어와 비어 보인다.
-      srcFocusY: 0.25,
+      // 하단 variant 는 img_frame.webp 를 정중앙(0.5) 포커스로 사용.
+      srcFocusY,
     },
   );
+
+  // env 로드 상태 — HDR 또는 Rim env 의 Suspense 가 해제되는 순간 true 로 올라간다.
+  // env 가 필요 없는 설정이면 항상 true 로 간주.
+  const [envReady, setEnvReady] = useState(false);
+  const needsEnv = config.envEnabled || config.rimEnabled;
+  const envSettled = !needsEnv || envReady;
+
+  // env 설정이 바뀌면(특히 on→off) 재로드를 의미하므로 envReady 를 리셋해 재수집.
+  useEffect(() => {
+    setEnvReady(false);
+  }, [config.envEnabled, config.envPreset, config.rimEnabled, config.rimPreset]);
+
+  const handleEnvReady = useCallback(() => {
+    setEnvReady(true);
+  }, []);
 
   const resetConfig = useCallback(() => setConfig(DEFAULT_CONFIG), []);
 
@@ -1189,6 +1283,8 @@ export const GlassOrbsScene = ({
           isBufferReady={isSourceReady}
           config={config}
           onFirstFrameReady={onFirstFrameReady}
+          onEnvReady={handleEnvReady}
+          envSettled={envSettled}
         />
       </Canvas>
 

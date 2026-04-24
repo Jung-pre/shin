@@ -76,12 +76,35 @@ export interface MainPageProps {
 
 const SCROLL_HOT_IDLE_MS = 520;
 /**
- * 3D 글래스는 히어로 구간에서만 필요하므로, 충분히 벗어나면 언마운트해 GPU 점유를 해제한다.
- * 모션의 방향/타이밍은 유지하기 위해 크로스페이드 임계점(triggerVh=0.25)보다 "뒤"에서만 해제.
- * 위로 다시 올라오면(remount) 자동 복귀.
+ * 3D 글래스 마운트 전략 (하이브리드):
+ *
+ * Desktop (>= MIN_WIDTH_PX):
+ *   - 페이지 초기 마운트 이후 언마운트하지 않고 상시 유지.
+ *   - `frameloop="demand"` + MouseTilt/Transmission 훅의 "보이지 않으면 invalidate/redraw 스킵"
+ *     가드로 idle 구간 GPU/CPU ≈ 0. 재마운트 스파이크(WebGL init + HDR fetch + CSG build) 제거
+ *     → 상/하단 크로스페이드 타이밍 밀림 문제 해결.
+ *   - 상단/하단 zone 은 더 이상 mount toggle 이 아니라 "variant (img_hero | img_frame) 토글" 용.
+ *
+ * Mobile (< MIN_WIDTH_PX):
+ *   - 히어로 구간만 마운트, 벗어나면 언마운트 (기존 전략 유지).
+ *   - 하단 글래스는 비활성 (MIN_WIDTH_PX 가드).
+ *   - 저사양 GPU/메모리 예산 보호.
+ *
+ * 상단(히어로) zone — 모바일 마운트 토글 + 공통 variant 토글:
+ *   - REMOUNT_SCROLL_VH (0.18) 위로 올라오면 (모바일) 마운트 / variant=top
+ *   - UNMOUNT_SCROLL_VH (0.55) 아래로 내려가면 (모바일) 언마운트
+ *
+ * 하단(피날레) zone — youtubeBottomRef sentinel 기준, desktop variant 토글 용:
+ *   - BOTTOM_ZONE_ENTER_VH (3.0) — sentinel.top < vh * 3.0 이면 variant=bottom
+ *                                  (img_frame.webp 프리로드 시간 확보)
+ *   - BOTTOM_ZONE_EXIT_VH  (3.3) — sentinel.top > vh * 3.3 이면 상단 우선권 회수
  */
 const GLASS_ORBS_UNMOUNT_SCROLL_VH = 0.55;
 const GLASS_ORBS_REMOUNT_SCROLL_VH = 0.18;
+const GLASS_ORBS_BOTTOM_ZONE_ENTER_VH = 3.0;
+const GLASS_ORBS_BOTTOM_ZONE_EXIT_VH = 3.3;
+/** 데스크탑 상시 마운트 기준 뷰포트 폭. 이 이하는 모바일 언마운트 전략. */
+const GLASS_ORBS_DESKTOP_MIN_WIDTH_PX = 768;
 
 export const MainPage = ({
   locale,
@@ -111,9 +134,29 @@ export const MainPage = ({
    * MainHero 의 h1 에 부착되고, GlassOrbsScene 은 이 ref 를 기준으로 텍스처를 그린다.
    */
   const heroTitleRef = useRef<HTMLHeadingElement>(null);
+  /**
+   * 그리드가 "가려지는 경계" 를 표시하는 sentinel ref.
+   * DOM 상 MedicalTeam 과 AcademicPublications 사이에 0px div 를 두고,
+   * 이 센티넬의 rect.top 이 뷰포트 top 보다 위로 올라가면 (rect.top <= 0)
+   * AcademicPublications(#fff) 가 그리드를 완전히 덮은 상태로 간주한다.
+   */
+  const gridBoundaryRef = useRef<HTMLDivElement>(null);
+  /**
+   * 유튜브 섹션 하단 sentinel — 페이지 끝 글래스 페이드인의 anchor.
+   * 섹션 높이가 바뀌어도 DOM 위치만 따라가게 두면 자동으로 트리거가 맞춰진다.
+   */
+  const youtubeBottomRef = useRef<HTMLDivElement>(null);
   const [gridScrollHot, setGridScrollHot] = useState(false);
   const [isGridVisible, setIsGridVisible] = useState(true);
   const [isGlassOrbsMounted, setIsGlassOrbsMounted] = useState(GLASS_ORBS_ENABLED);
+  /**
+   * 현재 마운트된 글래스가 어느 존을 위한 것인지.
+   *   - "top" = 히어로 (굴절 이미지 on) / "bottom" = 페이지 피날레 (투명 유리 모드)
+   * 한 쌍의 GlassOrbsScene 인스턴스를 두 존에서 공유하되 variant 에 따라 굴절 이미지만 토글한다.
+   */
+  const [glassOrbsVariant, setGlassOrbsVariant] = useState<"top" | "bottom">(
+    "top",
+  );
   /**
    * 기본 진입부터 "3D 준비 전엔 SVG 우선" 정책을 사용한다.
    * (webp 텍스처/첫 프레임 준비가 끝나면 onFirstFrameReady 에서 true 로 전환)
@@ -130,17 +173,44 @@ export const MainPage = ({
   const needReadyResetOnRemountRef = useRef(false);
   const scrollHotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 히어로 섹션(= 그리드가 보이는 구간)이 뷰포트에서 사라지면 반짝임 정지.
-  // heroTitleRef 를 sentinel 로 사용 — 제목이 화면 밖으로 나가면 그리드 가려진 것으로 판단.
+  // 그리드가 "실제로 화면에 보이는 구간" 을 결정한다.
+  // 섹션 배경 조사 결과:
+  //   Hero/Typography/RotatingSlide/MedicalTeam → 배경 transparent → 그리드 보임
+  //   AcademicPublications(#fff) 부터 끝까지 → 그리드 가려짐
+  // → MedicalTeam 과 AcademicPublications 사이의 sentinel 이 뷰포트 top 을
+  //   지나는 순간을 기준으로 isGridVisible 을 토글.
   useEffect(() => {
-    const el = heroTitleRef.current;
+    const el = gridBoundaryRef.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsGridVisible(entry?.isIntersecting ?? true),
-      { rootMargin: "120px 0px 0px 0px", threshold: 0 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
+
+    let rafId: number | null = null;
+    let scheduled = false;
+
+    const evaluate = () => {
+      scheduled = false;
+      rafId = null;
+      const rect = el.getBoundingClientRect();
+      // sentinel 이 뷰포트 top 아래에 있으면 그 위쪽(= 투명 섹션들) 이 현재
+      // 뷰포트에 노출된 상태 → 그리드가 보임. top <= 0 이면 AcademicPublications
+      // 가 뷰포트를 모두 덮고 있는 상태 → 그리드 가려짐.
+      const visible = rect.top > 0;
+      setIsGridVisible((prev) => (prev === visible ? prev : visible));
+    };
+
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      rafId = window.requestAnimationFrame(evaluate);
+    };
+
+    evaluate();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+    };
   }, []);
 
   /**
@@ -199,46 +269,6 @@ export const MainPage = ({
   );
 
   useEffect(() => {
-    console.log("text");
-  }, []);
-
-  useEffect(() => {
-    if (!GLASS_ORBS_ENABLED) {
-      setIsGlassOrbsMounted(false);
-      return;
-    }
-
-    const updateGlassOrbsMount = () => {
-      const vh = window.innerHeight || 1;
-      const y = window.scrollY;
-      const unmountAt = vh * GLASS_ORBS_UNMOUNT_SCROLL_VH;
-      const remountAt = vh * GLASS_ORBS_REMOUNT_SCROLL_VH;
-
-      setIsGlassOrbsMounted((prev) => {
-        if (prev && y > unmountAt) {
-          hasGlassOrbsUnmountedRef.current = true;
-          return false;
-        }
-        if (!prev && y < remountAt) {
-          if (hasGlassOrbsUnmountedRef.current) {
-            needReadyResetOnRemountRef.current = true;
-          }
-          return true;
-        }
-        return prev;
-      });
-    };
-
-    updateGlassOrbsMount();
-    window.addEventListener("scroll", updateGlassOrbsMount, { passive: true });
-    window.addEventListener("resize", updateGlassOrbsMount);
-    return () => {
-      window.removeEventListener("scroll", updateGlassOrbsMount);
-      window.removeEventListener("resize", updateGlassOrbsMount);
-    };
-  }, []);
-
-  useEffect(() => {
     if (!isGlassOrbsMounted) return;
     if (!needReadyResetOnRemountRef.current) return;
     // 역방향 재진입 리마운트: SVG 즉시 대기 모드로 전환.
@@ -247,9 +277,83 @@ export const MainPage = ({
     needReadyResetOnRemountRef.current = false;
   }, [isGlassOrbsMounted]);
 
+  /**
+   * 성능: scroll 리스너를 하나로 통합한다.
+   * - 이전엔 (1) 글래스 mount 계산 (2) grid hot 마킹 두 개의 scroll/wheel
+   *   리스너가 Lenis RAF 마다 각자 setState 를 찍어 프레임당 비용이 쌓였다.
+   * - 여기선 하나의 passive scroll 리스너에서 두 작업을 rAF 로 묶어 처리.
+   */
   useEffect(() => {
+    let rafId: number | null = null;
+    let scheduled = false;
+
+    const runFrame = () => {
+      scheduled = false;
+      rafId = null;
+
+      if (GLASS_ORBS_ENABLED) {
+        const vh = window.innerHeight || 1;
+        const y = window.scrollY;
+        const unmountAt = vh * GLASS_ORBS_UNMOUNT_SCROLL_VH;
+        const remountAt = vh * GLASS_ORBS_REMOUNT_SCROLL_VH;
+
+        const isDesktop =
+          window.innerWidth >= GLASS_ORBS_DESKTOP_MIN_WIDTH_PX;
+        const sentinel = youtubeBottomRef.current;
+        const sentinelTop = sentinel
+          ? sentinel.getBoundingClientRect().top
+          : Number.POSITIVE_INFINITY;
+        const bottomEnterPx = vh * GLASS_ORBS_BOTTOM_ZONE_ENTER_VH;
+        const bottomExitPx = vh * GLASS_ORBS_BOTTOM_ZONE_EXIT_VH;
+
+        const inTopZone = y < remountAt;
+        const inBottomZone = isDesktop && sentinelTop < bottomEnterPx;
+        const farFromTop = y > unmountAt;
+        const farFromBottom = !isDesktop || sentinelTop > bottomExitPx;
+
+        setIsGlassOrbsMounted((prev) => {
+          // 데스크탑: 첫 마운트 이후엔 상시 유지 (언마운트 스파이크 제거).
+          //   variant 토글만 수행 → idle 구간은 frameloop="demand" + 가드로 0 비용.
+          if (isDesktop) {
+            if (!prev) {
+              // 초기 또는 리사이즈로 desktop 진입 — 바로 마운트.
+              return true;
+            }
+            return prev;
+          }
+
+          // 모바일: 기존 "히어로 구간 한정" 전략 유지.
+          if (prev && farFromTop && farFromBottom) {
+            hasGlassOrbsUnmountedRef.current = true;
+            return false;
+          }
+          if (!prev && (inTopZone || inBottomZone)) {
+            if (hasGlassOrbsUnmountedRef.current) {
+              needReadyResetOnRemountRef.current = true;
+            }
+            return true;
+          }
+          return prev;
+        });
+
+        // Variant 토글 (데스크탑/모바일 공통) — 상단 우선, 그 외 bottom zone 진입 시 전환.
+        if (inTopZone) {
+          setGlassOrbsVariant("top");
+        } else if (inBottomZone) {
+          setGlassOrbsVariant("bottom");
+        }
+      }
+    };
+
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      rafId = window.requestAnimationFrame(runFrame);
+    };
+
     const markHot = () => {
-      setGridScrollHot(true);
+      // hot 플래그는 state 이지만 이미 true 면 재세팅을 피해 setState 반복 억제.
+      setGridScrollHot((prev) => (prev ? prev : true));
       if (scrollHotTimerRef.current) {
         clearTimeout(scrollHotTimerRef.current);
       }
@@ -259,11 +363,26 @@ export const MainPage = ({
       }, SCROLL_HOT_IDLE_MS);
     };
 
-    window.addEventListener("scroll", markHot, { passive: true });
+    const handleScroll = () => {
+      markHot();
+      schedule();
+    };
+
+    // 초기 1회 동기 실행 (언마운트 기준 첫 판정)
+    if (!GLASS_ORBS_ENABLED) {
+      setIsGlassOrbsMounted(false);
+    } else {
+      runFrame();
+    }
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("wheel", markHot, { passive: true });
+    window.addEventListener("resize", schedule);
     return () => {
-      window.removeEventListener("scroll", markHot);
+      window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("wheel", markHot);
+      window.removeEventListener("resize", schedule);
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
       if (scrollHotTimerRef.current) {
         clearTimeout(scrollHotTimerRef.current);
       }
@@ -282,7 +401,15 @@ export const MainPage = ({
             <div ref={glassIntroRef} className={styles.glassIntroWrap}>
               {isGlassOrbsMounted ? (
                 <GlassOrbsScene
-                  targetRef={heroTitleRef}
+                  sourceImageUrl={
+                    glassOrbsVariant === "bottom"
+                      ? "/main/img_frame.webp"
+                      : "/main/img_hero.webp"
+                  }
+                  targetRef={
+                    glassOrbsVariant === "bottom" ? undefined : heroTitleRef
+                  }
+                  srcFocusY={glassOrbsVariant === "bottom" ? 0.5 : 0.25}
                   onFirstFrameReady={() => {
                     setIsGlassOrbsReady(true);
                     setIsGlassRemount(false);
@@ -299,6 +426,7 @@ export const MainPage = ({
             glassReady={isGlassOrbsReady}
             isRemount={isGlassRemount}
             onGlassReady={() => setIsGlassRemount(false)}
+            bottomGlassAnchorRef={youtubeBottomRef}
           />
         </>
       ) : null}
@@ -307,6 +435,8 @@ export const MainPage = ({
         <TypographyScrollSection messages={typographySection} />
         <RotatingSlideSection />
         <MedicalTeamSection messages={medicalTeamSection} />
+        {/* 그리드 가시 구간 경계 — AcademicPublications(#fff) 가 여기부터 시작 */}
+        <div ref={gridBoundaryRef} aria-hidden style={{ width: "100%", height: 0 }} />
         <AcademicPublicationsSection messages={academicPublicationsSection} />
         <MachineSection messages={machineSection} />
         <ReviewSection messages={reviewSection} />
@@ -314,6 +444,8 @@ export const MainPage = ({
         <BlogSection messages={blogSection} />
         <NewsSection messages={newsSection} />
         <YoutubeSection messages={youtubeSection} />
+        {/* 하단 글래스 페이드인 anchor — 유튜브 섹션 바로 뒤에 0px sentinel */}
+        <div ref={youtubeBottomRef} aria-hidden style={{ width: "100%", height: 0 }} />
         <YoutubeTransitionSection />
       </div>
     </main>

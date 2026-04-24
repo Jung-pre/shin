@@ -51,6 +51,12 @@ export interface UseImageTransmissionTextureOptions {
    *   렌즈 안에 비어 있는 하단부가 보이게 된다.
    */
   srcFocusY?: number;
+  /**
+   * false 면 이미지 로딩/drawImage 를 스킵하고 캔버스를 완전 투명(clear) 상태로 유지.
+   * MTM 굴절 레이어가 비어 있으면 env 반사와 `<canvas alpha:true>` 뒤 DOM 이 그대로 비쳐
+   * "투명한 유리" 느낌이 된다. 기본 true (기존 동작 유지).
+   */
+  renderImage?: boolean;
 }
 
 const getPngFallbackSrc = (url: string): string | null => {
@@ -83,6 +89,7 @@ export const useImageTransmissionTexture = (
     invalidate,
     srcFocusX = 0.5,
     srcFocusY = 0.5,
+    renderImage = true,
   } = options;
 
   const texture = useMemo((): CanvasTexture | null => {
@@ -111,8 +118,6 @@ export const useImageTransmissionTexture = (
   /** 캔버스에 현재 뷰포트·target 기준으로 이미지를 cover/contain + center-center 로 재묘사 */
   const redraw = useCallback(() => {
     if (!texture) return;
-    const img = imgRef.current;
-    if (!img || !imgReadyRef.current) return;
     if (typeof window === "undefined") return;
 
     const canvas = texture.image as HTMLCanvasElement;
@@ -134,6 +139,18 @@ export const useImageTransmissionTexture = (
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvasW, canvasH);
+
+    // 투명 모드: 캔버스를 clear 상태로 유지 → MTM 굴절 레이어가 비어 env 반사와
+    // 뒤쪽 DOM 이 그대로 비친다. 하단 피날레 글래스에서 사용.
+    if (!renderImage) {
+      texture.needsUpdate = true;
+      invalidate?.();
+      return;
+    }
+
+    const img = imgRef.current;
+    if (!img || !imgReadyRef.current) return;
+
     if (backgroundColor) {
       ctx.fillStyle = backgroundColor;
       ctx.fillRect(0, 0, canvasW, canvasH);
@@ -158,12 +175,23 @@ export const useImageTransmissionTexture = (
 
     // 중심 좌표 — target 지정 시 해당 요소의 bbox 중심, 없으면 뷰포트 중심.
     // 스크롤에 따라 rect.top 이 자연스럽게 음수로 내려가므로 1:1 동기화는 이 한 줄로 성립.
+    //
+    // 단, target 이 뷰포트에서 "너무 멀리" (위·아래로 1.5vh 이상) 벗어나면 이미지가
+    // 캔버스 밖으로 그려져 렌즈 내부가 비어(검은 배경) 보인다 — 페이지 하단 글래스
+    // 리마운트 시 targetRef(히어로 타이틀) 가 수천 px 위에 있으므로 이 케이스. 그때는
+    // 뷰포트 중심을 폴백으로 써서 렌즈에 배경이 비치게 한다(투명한 느낌 회복).
     const target = targetRef?.current ?? null;
     const rect = target?.getBoundingClientRect();
+    const viewportFarMargin = viewH * 1.5;
+    const targetInRange =
+      rect &&
+      rect.width > 0 &&
+      rect.top > -viewportFarMargin &&
+      rect.bottom < viewH + viewportFarMargin;
     const centerX =
-      rect && rect.width > 0 ? rect.left + rect.width / 2 : viewW / 2;
+      targetInRange && rect ? rect.left + rect.width / 2 : viewW / 2;
     const centerY =
-      rect && rect.height > 0 ? rect.top + rect.height / 2 : viewH / 2;
+      targetInRange && rect ? rect.top + rect.height / 2 : viewH / 2;
 
     // 포커스 포인트(srcFocusX/Y · 0~1) 가 centerX/Y 에 오도록 좌상단 좌표 계산.
     //   - 기본 0.5 면 이미지 정중앙이 타겟 중심에 정렬 (기존 동작과 동일).
@@ -183,11 +211,19 @@ export const useImageTransmissionTexture = (
     texture.needsUpdate = true;
     // demand frameloop 에서 즉시 다음 프레임 렌더를 예약. React state 체인을 우회해 지연 제거.
     invalidate?.();
-  }, [texture, targetRef, fit, zoom, backgroundColor, invalidate, srcFocusX, srcFocusY]);
+  }, [texture, targetRef, fit, zoom, backgroundColor, invalidate, srcFocusX, srcFocusY, renderImage]);
 
   // 이미지 로드
   useEffect(() => {
     if (!texture) return;
+    // 투명 모드: 이미지 다운로드·listener 붙이지 않음. 캔버스는 clear 상태로 바로 ready.
+    if (!renderImage) {
+      imgRef.current = null;
+      imgReadyRef.current = true;
+      setIsSourceReady(true);
+      redraw();
+      return;
+    }
     let alive = true;
     let didTryFallback = false;
 
@@ -225,12 +261,16 @@ export const useImageTransmissionTexture = (
     img.src = src;
 
     return () => {
+      // src 가 바뀌어 이 effect 가 cleanup 될 때는 "옛 이미지" 를 남겨 둔다 —
+      //   · alive=false 로 옛 fetch 의 onload 가 뒤늦게 터지는 것만 차단.
+      //   · imgRef / imgReadyRef / isSourceReady 는 그대로 유지 → 새 이미지 로드가
+      //     끝날 때까지 기존 이미지가 그려져서 Scene 이 unmount 되지 않는다.
+      //
+      // 컴포넌트 자체가 unmount 되는 상황이면 texture 메모이즈도 사라져서
+      //   이 경로에 남은 image ref 는 GC 대상 — 별도 해제 필요 없음.
       alive = false;
-      imgReadyRef.current = false;
-      imgRef.current = null;
-      setIsSourceReady(false);
     };
-  }, [texture, src, redraw]);
+  }, [texture, src, redraw, renderImage]);
 
   // resize / scroll / target bbox 변화 / 웹폰트 로드 시 재정렬
   //
@@ -240,10 +280,11 @@ export const useImageTransmissionTexture = (
   // 스크롤 이벤트마다 redraw 만 걸어 주면 targetRef 기준 중심 정렬이 그대로 반영되어
   // 렌즈 안의 이미지가 실제 히어로가 스크롤되는 것처럼 위로 흘러 올라간다.
   //
-  // 스크롤은 rAF 스로틀 없이 "이벤트 발생 즉시" redraw 로 보내서 체인 지연을 제거.
-  // 브라우저는 passive scroll 이벤트를 이미 프레임 레이트 안쪽으로 묶어 주므로
-  // 동기 호출해도 실질 redraw 횟수는 프레임당 1 회 수준이며,
-  // rAF 를 추가로 거치던 "한 프레임 뒤로 밀리는" 지연만 없앤다.
+  // 성능: Lenis 스무스 스크롤은 내부 RAF 마다 window.scrollTo 를 호출하므로
+  // scroll 이벤트가 한 프레임에 여러 번 발생할 수 있다. drawImage + GPU
+  // 텍스처 업로드 + MTM invalidate 가 그때마다 동기로 돌면 스크롤이 무거워진다.
+  // 따라서 rAF 로 병합해 "프레임당 최대 1회" 로 스로틀한다 — 스크롤 방향/위치는
+  // 프레임 시점의 최신 getBoundingClientRect() 을 쓰므로 모션 체감은 동일.
   useEffect(() => {
     if (!texture) return;
     if (typeof window === "undefined") return;
@@ -257,25 +298,36 @@ export const useImageTransmissionTexture = (
       });
     };
 
-    // 성능 가드: 글래스는 히어로 구간(triggerVh ≈ 0.25) 만 보이고 그 밑으론
-    //   opacity 0 으로 페이드 아웃 → SVG 오버레이로 교체된다. 그 구간에서도
-    //   스크롤마다 drawImage(1.47MB) + invalidate() 체인이 돌면 CPU·GPU 모두
-    //   불필요하게 깨어난다. 여기서 스크롤 위치가 "확실히 글래스 밖" 이면 redraw 를
-    //   스킵한다. 다시 상단으로 올라오면 위치가 조건을 통과해 자연스레 재개됨.
-    //
-    //   (crossfade triggerVh 기본 0.25 + 약간의 여유 0.05 = 0.3vh 이후 스킵)
+    // 성능 가드: 글래스는 두 구간에서만 보인다.
+    //   - 상단 히어로 (crossfade triggerVh ≈ 0.25) + 여유 0.05 = scrollY ≤ vh * 1.3
+    //   - 하단 피날레 (remaining ≤ vh * ~1.5, main-page GLASS_ORBS_BOTTOM_UNMOUNT_AHEAD_VH)
+    // 그 사이 중간부에선 opacity 0 + 컴포넌트가 아예 언마운트 되므로 redraw 불필요.
+    // 하지만 하단 리마운트 구간에서도 스킵하면 텍스처가 갱신 안 돼 렌즈가 검게 보인다.
+    // → 상단/하단 중 어느 한쪽이라도 "가시 영역 근접" 이면 redraw 진행.
     const HIDDEN_SCROLL_VH = 0.3;
-    const isGlassHidden = () =>
-      window.scrollY > (window.innerHeight || 0) * (1 + HIDDEN_SCROLL_VH);
+    const BOTTOM_VISIBLE_VH = 1.5;
+    const isGlassHidden = () => {
+      const vh = window.innerHeight || 0;
+      if (!vh) return false;
+      const sy = window.scrollY;
+      const nearTop = sy <= vh * (1 + HIDDEN_SCROLL_VH);
+      if (nearTop) return false;
+      const docH = Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight,
+      );
+      const remaining = docH - (sy + vh);
+      const nearBottom = remaining <= vh * BOTTOM_VISIBLE_VH;
+      return !nearBottom;
+    };
 
-    // 스크롤은 즉시 동기 redraw — 지연 체인 제거. 단, 글래스가 숨겨진
-    // 구간에서는 스킵해 passive 리스너만 등록된 상태로 둔다.
+    // 스크롤은 RAF 로 병합 — 한 프레임 안에 여러 번 와도 redraw 는 1회만.
+    // 글래스가 숨겨진 구간에서는 rAF 예약조차 걸지 않아 완전히 idle.
     const onScroll = () => {
       if (isGlassHidden()) return;
-      redraw();
+      scheduleRaf();
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    // resize / ResizeObserver / 폰트 로드는 덜 자주 + 캔버스 재할당 가능성이 있으니 rAF 로 묶음.
     window.addEventListener("resize", scheduleRaf);
 
     const target = targetRef?.current ?? null;

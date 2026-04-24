@@ -1,8 +1,8 @@
 "use client";
 
-import { memo, Suspense, useEffect } from "react";
-import { Canvas } from "@react-three/fiber";
-import { Bounds, Environment, PresentationControls, useGLTF } from "@react-three/drei";
+import { memo, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { Canvas, useFrame } from "@react-three/fiber";
+import { Bounds, Environment, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import {
   DEFAULT_MODEL_SCENE_CONFIG,
@@ -26,8 +26,9 @@ export {
  *
  * - 이미지를 교체하는 게 아니라 "위에 얹는" 용도이므로 캔버스 배경은 투명(alpha)으로.
  * - `<Bounds fit>` 이 모델 bbox 를 자동 계산해 프레임에 맞춰 주므로 모델 크기·원점에 상관없이 들어맞음.
- * - `<PresentationControls>` 로 드래그 시 소폭 회전만 허용 — 풀 오빗 대신 "앞쪽만 살짝" 틸트.
- *   놓으면 snap 으로 기본 자세로 스프링 복귀. 휠 스크롤은 가로채지 않아 페이지 스크롤은 그대로.
+ * - `MouseFollowGroup` 으로 마우스 위치에 따라 소폭 회전 — 클릭 없이 hover 만으로 반응.
+ *   회전 한계는 config.azimuthLimit / polarLimit 로 제한되고, 커서가 움직이지 않으면 관성 없이 정지.
+ *   휠 스크롤/클릭은 전혀 가로채지 않아 페이지 스크롤·퀵바 상호작용은 그대로 유지된다.
  * - 사용하는 모델은 이 모듈(= 씬) 이 실제로 로드될 때만 preload. 이 파일은
  *   `next/dynamic` 으로만 import 되므로 Machine 섹션이 화면에 붙기 전까지 26MB
  *   GLB 다운로드가 시작되지 않는다.
@@ -42,11 +43,55 @@ useGLTF.preload(VISUMAX_800_URL);
 useGLTF.preload(VISUMAX_500_URL);
 
 /**
- * PresentationControls 스프링 감쇠 — drei 10.7 에서 `config={{mass,tension,friction}}`
- *   API 가 `damping` (단일 숫자) 로 대체됨. 기존 기본값 `{mass:1, tension:170, friction:26}` 은
- *   critical damping ratio ≈ 0.998 수준이라 사실상 `damping: 1` 과 거의 동일 → 그대로 1 사용.
+ * 마우스 추적 회전 그룹.
+ *   - 과거엔 <PresentationControls> 로 "클릭 드래그" 해야 회전했는데, azimuth/polar 범위가
+ *     좁아서 VISUMAX 800/500 은 거의 안 움직이는 것처럼 보임. 기획 요구는 "마우스만 따라
+ *     부드럽게 회전" 이라 아예 pointer-follow 로 교체.
+ *   - 마우스 좌표를 뷰포트 기준 정규화(-1..1) 후 config 의 azimuth/polar 한계를 최대 각도로
+ *     환산해 target 회전값을 잡고, useFrame 에서 지수 감쇠 lerp 로 따라감 → 부드럽고 관성감.
+ *   - mousemove 는 window 레벨 listener 1 개. frameloop="never" 인 동안엔 useFrame 이 돌지
+ *     않으므로 뷰포트 밖에서는 회전도 자동 정지(성능 안전).
  */
-const SPRING_DAMPING = 1;
+interface MouseFollowGroupProps {
+  children: ReactNode;
+  maxYawRad: number;
+  maxPitchRad: number;
+  lerpSpeed?: number;
+}
+
+const MouseFollowGroup = ({
+  children,
+  maxYawRad,
+  maxPitchRad,
+  lerpSpeed = 6,
+}: MouseFollowGroupProps) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const targetRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handle = (event: MouseEvent) => {
+      const w = window.innerWidth || 1;
+      const h = window.innerHeight || 1;
+      const nx = (event.clientX / w) * 2 - 1;
+      const ny = (event.clientY / h) * 2 - 1;
+      targetRef.current.x = -ny * maxPitchRad;
+      targetRef.current.y = nx * maxYawRad;
+    };
+    window.addEventListener("mousemove", handle, { passive: true });
+    return () => window.removeEventListener("mousemove", handle);
+  }, [maxYawRad, maxPitchRad]);
+
+  useFrame((_, delta) => {
+    const group = groupRef.current;
+    if (!group) return;
+    const lerp = 1 - Math.exp(-delta * lerpSpeed);
+    group.rotation.x += (targetRef.current.x - group.rotation.x) * lerp;
+    group.rotation.y += (targetRef.current.y - group.rotation.y) * lerp;
+  });
+
+  return <group ref={groupRef}>{children}</group>;
+};
 
 interface GltfModelProps {
   url: string;
@@ -128,16 +173,40 @@ export const VisumaxModelScene = ({
   config = DEFAULT_MODEL_SCENE_CONFIG,
   onLoaded,
 }: VisumaxModelSceneProps) => {
-  const azimuth: [number, number] = [-config.azimuthLimit, config.azimuthLimit];
-  const polar: [number, number] = [-config.polarLimit, config.polarLimit];
+  // 성능: Canvas 3개(800/500/Catalys)가 frameloop="always" 로 상시 60fps 렌더되면
+  //   스크롤 중 GPU/CPU 부하가 누적된다. IntersectionObserver 로 뷰포트에 실제로
+  //   보일 때만 frameloop="always" 로 켜고, 밖이면 "never" 로 내려 렌더를 정지.
+  //   MouseFollowGroup 의 useFrame 도 뷰포트 안에서만 돌아 자동으로 정지된다.
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [frameloop, setFrameloop] = useState<"always" | "never">("never");
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el || typeof window === "undefined") return;
+    if (!("IntersectionObserver" in window)) {
+      setFrameloop("always");
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        setFrameloop(entry?.isIntersecting ? "always" : "never");
+      },
+      // 진입 직전부터 켜서 첫 프레임을 놓치지 않도록 여유 마진.
+      { root: null, rootMargin: "200px 0px", threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   return (
+    <div
+      ref={wrapperRef}
+      style={{ position: "relative", width: "100%", height: "100%" }}
+    >
     <Canvas
       camera={{ position: [0, 0, 4], fov: 35 }}
       dpr={[1, 2]}
-      // 주의: drei PresentationControls 는 useFrame 내부에서 invalidate() 를 호출하지 않는다.
-      //   frameloop="demand" 로 두면 드래그 중에도 useFrame 이 돌지 않아 스프링 애니메이션이
-      //   작동하지 않음 → 기본값(always) 유지.
+      // frameloop 은 뷰포트 진입 여부에 따라 toggling. 밖이면 렌더 완전 정지 → GPU idle.
+      frameloop={frameloop}
       gl={{ alpha: true, antialias: true, preserveDrawingBuffer: false }}
       style={{ background: "transparent" }}
     >
@@ -156,17 +225,11 @@ export const VisumaxModelScene = ({
         {/* 트랜스폼 계층:
          *   1) 가장 바깥 group: position (world translate) — Bounds 가 못 보는 바깥이라
          *      카메라 재피팅 영향 없이 모델만 이동한다.
-         *   2) PresentationControls: 드래그로 축 회전 (snap 복귀 포함).
+         *   2) MouseFollowGroup: 마우스 위치를 따라 축 회전 (클릭 없이 hover 로 반응).
          *   3) 내부 group: 기본 자세(rotationX/Y) + scale — 모델 자체의 회전/크기 보정.
          *   4) BoundedModel: memo 된 Bounds + GLTF → url 동일하면 재피팅 안 됨. */}
         <group position={[config.positionX, config.positionY, config.positionZ]}>
-          <PresentationControls
-            global
-            snap
-            polar={polar}
-            azimuth={azimuth}
-            damping={SPRING_DAMPING}
-          >
+          <MouseFollowGroup maxYawRad={config.azimuthLimit} maxPitchRad={config.polarLimit}>
             <group rotation={[config.rotationX, config.rotationY, 0]} scale={config.scale}>
               <BoundedModel
                 url={modelUrl}
@@ -175,10 +238,11 @@ export const VisumaxModelScene = ({
                 onReady={onLoaded}
               />
             </group>
-          </PresentationControls>
+          </MouseFollowGroup>
         </group>
       </Suspense>
     </Canvas>
+    </div>
   );
 };
 
