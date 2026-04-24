@@ -770,15 +770,22 @@ const MouseTiltGroup = ({
       target.current.x = -ny * maxTiltRad * fade;
       target.current.y = nx * maxTiltRad * fade;
 
-      // Invalidate 가드: 글래스가 보이지 않는 구간(fade≈0)에서는 render 를 깨우지 않음.
-      //   · 상시 마운트 + demand frameloop 조합에서 idle 상태(0 fps)를 유지하는 핵심.
-      //   · visible→hidden 전환 직후에만 1회 invalidate 해서 useFrame 이 rotation 을
-      //     0 으로 lerp 하게 하고, 그 다음 프레임부턴 useFrame 자체 가드에 위임.
-      const visible = fade > 0.001;
-      if (visible || wasVisibleRef.current) {
+      // Invalidate 가드 — "SVG→Glass" 전환 시 콜드 스타트 방지용으로 실제 가시
+      // 구간(fade>0) 보다 0.5vh 더 넓은 프리월 존 에서도 invalidate 허용.
+      //   · 실제 tilt 강도(target.x/y) 는 fade 로 제어되므로 프리월 존에선 0 가까이 유지 →
+      //     시각적 변화 없음. 대신 demand frameloop 이 돌아서 MTM / transmission 버퍼가
+      //     최신 상태로 유지됨 → opacity 0→1 전환 첫 프레임이 이미 따뜻.
+      //   · 버퍼 범위를 벗어나면 기존처럼 wasVisibleRef 로 "한 프레임만 lerp→0" 수행 후 정지.
+      const PREWARM_VH = 0.5;
+      const topPrewarm = scrollY < h * (scrollFadeVh + PREWARM_VH);
+      const bottomPrewarm = remaining < h * (scrollFadeVh + PREWARM_VH);
+      const nearVisible = topPrewarm || bottomPrewarm;
+      if (nearVisible || wasVisibleRef.current) {
         invalidate();
       }
-      wasVisibleRef.current = visible;
+      // wasVisibleRef 는 "조금 전엔 invalidate 범위였지만 이제 벗어남" 상태를 추적해
+      // 1 프레임만 추가 invalidate 해서 lerp 잔여를 소진하는 용도.
+      wasVisibleRef.current = nearVisible;
     };
 
     const handleMove = (event: MouseEvent) => {

@@ -298,13 +298,15 @@ export const useImageTransmissionTexture = (
       });
     };
 
-    // 성능 가드: 글래스는 두 구간에서만 보인다.
-    //   - 상단 히어로 (crossfade triggerVh ≈ 0.25) + 여유 0.05 = scrollY ≤ vh * 1.3
-    //   - 하단 피날레 (remaining ≤ vh * ~1.5, main-page GLASS_ORBS_BOTTOM_UNMOUNT_AHEAD_VH)
-    // 그 사이 중간부에선 opacity 0 + 컴포넌트가 아예 언마운트 되므로 redraw 불필요.
-    // 하지만 하단 리마운트 구간에서도 스킵하면 텍스처가 갱신 안 돼 렌즈가 검게 보인다.
-    // → 상단/하단 중 어느 한쪽이라도 "가시 영역 근접" 이면 redraw 진행.
-    const HIDDEN_SCROLL_VH = 0.3;
+    // 성능 가드 — "SVG → Glass" 전환 시 콜드 스타트 스파이크를 제거하기 위해
+    // 실제 가시 구간보다 넓은 "프리월 버퍼" 를 둔다.
+    //   · 상단: crossfade triggerVh ≈ 0.25 + 프리월 1.0 = scrollY ≤ vh * 2.0 이면 redraw 허용
+    //     → 사용자가 역방향으로 접근할 때 글래스가 보이기 전에 이미 최신 스냅샷이 캔버스에 그려져 있어
+    //       opacity 0→1 전환 첫 프레임이 "따뜻한" 상태에서 시작.
+    //   · 하단: 이미 3vh 수준에서 variant 전환이 일어나므로 remaining ≤ 1.5vh 여유로 충분.
+    // 프리월 구간의 redraw 는 drawImage 1회 + GPU 업로드라 체감 ~1ms 수준, 히어로~타이포
+    // 섹션 스크롤 전체에서 돌아도 비용 부담 미미.
+    const HIDDEN_SCROLL_VH = 1.0;
     const BOTTOM_VISIBLE_VH = 1.5;
     const isGlassHidden = () => {
       const vh = window.innerHeight || 0;

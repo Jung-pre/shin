@@ -55,8 +55,22 @@ const YoutubeTransitionSection = dynamic(() =>
 /** 잠시 끔 — 다시 켤 때 `true`로 바꾸고 아래 글래스 레이어 렌더 복구 */
 const GLASS_ORBS_ENABLED = true;
 
+/**
+ * 글래스 렌더 백엔드 토글.
+ *   - false(기본): 기존 `GlassOrbsScene` (R3F + MeshTransmissionMaterial) 사용.
+ *   - true        : `CssGlassScene` (CSS backdrop-filter + SVG feDisplacementMap) 사용.
+ *
+ * 비교 실험용으로 남겨둔 플래그 — 현 시점 3D 결과가 우위라 기본 false 유지.
+ */
+const USE_CSS_GLASS = false;
+
 const GlassOrbsScene = dynamic(
   () => import("@/features/main/common/glass-orbs-scene").then((mod) => mod.GlassOrbsScene),
+  { ssr: false },
+);
+
+const CssGlassScene = dynamic(
+  () => import("@/features/main/common/css-glass-scene").then((mod) => mod.CssGlassScene),
   { ssr: false },
 );
 
@@ -346,12 +360,20 @@ export const MainPage = ({
           return prev;
         });
 
-        // Variant 토글 (데스크탑/모바일 공통) — 상단 우선, 그 외 bottom zone 진입 시 전환.
-        if (inTopZone) {
-          setGlassOrbsVariant("top");
-        } else if (inBottomZone) {
-          setGlassOrbsVariant("bottom");
-        }
+        // Variant 토글 — "bottom zone 안이면 bottom, 그 외엔 top" 단순 이분법.
+        //   · 기존: inTopZone (y < 0.18vh) 일 때만 top 복귀 → 역방향 스크롤에서
+        //     글래스가 보이기 직전(가시 크로스페이드 한복판)에 이미지 스왑이 겹쳐
+        //     첫 프레임이 콜드 스타트 + 새 텍스처 로드 스파이크로 "SVG→Glass" 전환 시
+        //     순간적인 렉이 발생.
+        //   · 새 로직: sentinel.top > exitPx 면 즉시 top → 히스테리시스 0.3vh 여유 유지.
+        //     결과적으로 glass 가 실제로 보이기 훨씬 전(≈3vh 떨어진 지점)에 variant 가
+        //     교체돼 이미지 재로드·redraw·invalidate 가 모두 "숨은 구간"에서 완료.
+        //
+        //   · 모바일(!isDesktop) 은 inBottomZone 이 항상 false 이므로 자동으로 top 만 사용.
+        setGlassOrbsVariant((prev) => {
+          const next = inBottomZone ? "bottom" : "top";
+          return prev === next ? prev : next;
+        });
       }
     };
 
@@ -416,21 +438,33 @@ export const MainPage = ({
             {/* glassLayerRef 는 크로스페이드 opacity 점유 → 등장 모션은 이 내부 래퍼가 담당 */}
             <div ref={glassIntroRef} className={styles.glassIntroWrap}>
               {isGlassOrbsMounted ? (
-                <GlassOrbsScene
-                  sourceImageUrl={
-                    glassOrbsVariant === "bottom"
-                      ? "/main/img_frame.webp"
-                      : "/main/img_hero.webp"
-                  }
-                  targetRef={
-                    glassOrbsVariant === "bottom" ? undefined : heroTitleRef
-                  }
-                  srcFocusY={glassOrbsVariant === "bottom" ? 0.5 : 0.25}
-                  onFirstFrameReady={() => {
-                    setIsGlassOrbsReady(true);
-                    setIsGlassRemount(false);
-                  }}
-                />
+                USE_CSS_GLASS ? (
+                  // A안: CSS backdrop-filter + SVG feDisplacementMap.
+                  //   variant / 소스 이미지는 사용하지 않음 — 뒷배경(DOM) 을 그대로 굴절해서 보여주므로
+                  //   상/하단 구분 없이 동일 인스턴스가 화면 뒤의 콘텐츠를 실시간으로 반영한다.
+                  <CssGlassScene
+                    onFirstFrameReady={() => {
+                      setIsGlassOrbsReady(true);
+                      setIsGlassRemount(false);
+                    }}
+                  />
+                ) : (
+                  <GlassOrbsScene
+                    sourceImageUrl={
+                      glassOrbsVariant === "bottom"
+                        ? "/main/img_frame.webp"
+                        : "/main/img_hero.webp"
+                    }
+                    targetRef={
+                      glassOrbsVariant === "bottom" ? undefined : heroTitleRef
+                    }
+                    srcFocusY={glassOrbsVariant === "bottom" ? 0.5 : 0.25}
+                    onFirstFrameReady={() => {
+                      setIsGlassOrbsReady(true);
+                      setIsGlassRemount(false);
+                    }}
+                  />
+                )
               ) : null}
             </div>
           </div>

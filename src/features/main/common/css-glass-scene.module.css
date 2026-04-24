@@ -1,0 +1,189 @@
+/*
+ * CssGlassScene — `.glassLayer` 안에 들어가서 3D 씬과 동일한 뷰포트 중앙 배치.
+ * `.glassLayer` 가 이미 position: fixed + mask-image + 40rem 높이 로 레이어를 잡았으므로
+ * 여기서는 100% 영역을 채우기만 하면 된다.
+ */
+.scene {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* SVG defs 전용 컨테이너 — 레이아웃 차지 0. */
+.defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.lensGroup {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+/*
+ * 렌즈 wrap — 실루엣을 자르는 컨테이너.
+ *   - lens1: border-radius 50% + overflow hidden (원은 mask 없이 완벽)
+ *   - lens2: mask-image (SVG data-URI) 로 크레센트 path 실루엣을 그대로 깎음
+ * 안쪽 4 레이어(.backdrop/.tint/.caustic/.edge) 는 전부 inset:0 으로 포개져 한 덩어리로 보임.
+ */
+.lensWrap {
+  position: relative;
+  flex-shrink: 0;
+  will-change: transform;
+}
+
+.lens1Wrap {
+  border-radius: 50%;
+  overflow: hidden;
+  /* compositor 레이어 강제 — backdrop-filter 가 안정적으로 동작하려면 own stacking context 필수. */
+  isolation: isolate;
+}
+
+/*
+ * crescent 실루엣 — Figma path 그대로.
+ * viewBox 420×535, preserveAspectRatio=none 으로 wrap 크기에 자동 스케일.
+ * # / < / > / " 이슈 회피를 위해 내부는 싱글쿼트만 사용.
+ */
+.lens2Wrap {
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 535' preserveAspectRatio='none'><path d='M151.713 0C299.477 0.000108677 419.256 119.779 419.256 267.457C419.256 415.221 299.477 535 151.713 535C95.3848 535 43.1244 517.593 0.0146484 487.866C66.3091 437.221 109.079 357.336 109.079 267.455C109.079 177.62 66.303 97.7512 0 47.1152C43.1125 17.3983 95.3786 0 151.713 0Z' fill='white'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 535' preserveAspectRatio='none'><path d='M151.713 0C299.477 0.000108677 419.256 119.779 419.256 267.457C419.256 415.221 299.477 535 151.713 535C95.3848 535 43.1244 517.593 0.0146484 487.866C66.3091 437.221 109.079 357.336 109.079 267.455C109.079 177.62 66.303 97.7512 0 47.1152C43.1125 17.3983 95.3786 0 151.713 0Z' fill='white'/></svg>");
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  isolation: isolate;
+}
+
+/* ── 레이어 1: 뒷배경 굴절 ────────────────────────────────────────────────── */
+/*
+ * backdrop-filter 로 뒷배경을 왜곡+블러.
+ *   - `url(#css-lens-refract)` — feDisplacementMap 굴절.
+ *   - blur / saturate / brightness / contrast 는 "유리" 톤 증폭.
+ * Safari 는 -webkit-backdrop-filter 에 SVG filter 체인 미지원 → 자동으로 blur 만 적용.
+ */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: url(#css-lens-refract) blur(14px) saturate(1.55) brightness(1.1) contrast(1.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.55) brightness(1.1) contrast(1.08);
+}
+
+/* ── 레이어 2: 글래스 자체 틴트 ───────────────────────────────────────────── */
+/*
+ * 아주 옅은 보라+흰 틴트 — backdrop 위에 살짝 덮어 "유리 몸체" 존재감을 부여.
+ * 너무 진하면 뒤가 안 비치고, 너무 옅으면 렌즈 존재감이 사라진다. 6% 선에서 균형.
+ */
+.tint {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0.04) 45%,
+      rgba(200, 180, 220, 0.1) 100%
+    );
+}
+
+/* ── 레이어 3: 코스틱 / 크리스탈 하이라이트 ───────────────────────────────── */
+/*
+ * 평평한 배경에서도 "크리스탈" 느낌을 살리는 핵심 레이어.
+ *   · 좌상단 큰 radial — 렌즈 안쪽에서 빛이 모이는 느낌 (1차 하이라이트)
+ *   · 중앙 소프트 glow — 유리 두께를 암시
+ *   · 우하단 감쇠 — 그림자 쪽 살짝 어둡게 해서 입체감
+ *   · 미세 prism tint — 보라↔청록 약간 섞어 색분산 힌트
+ * mix-blend-mode 는 쓰지 않음 (합성 비용 + 예측 불가 상호작용 회피).
+ */
+.caustic {
+  position: absolute;
+  inset: 0;
+  background:
+    /* 좌상단 스페큘러 하이라이트 */
+    radial-gradient(
+      ellipse 55% 45% at 28% 22%,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.18) 35%,
+      rgba(255, 255, 255, 0) 65%
+    ),
+    /* 아래쪽 보조 하이라이트 (렌즈 밑면 반사) */
+    radial-gradient(
+      ellipse 40% 20% at 50% 82%,
+      rgba(255, 255, 255, 0.28) 0%,
+      rgba(255, 255, 255, 0) 70%
+    ),
+    /* 우하단 음영 — 입체감 */
+    radial-gradient(
+      ellipse 70% 60% at 80% 75%,
+      rgba(60, 30, 90, 0.18) 0%,
+      rgba(60, 30, 90, 0) 60%
+    ),
+    /* 색분산 힌트 — 보라 */
+    radial-gradient(
+      ellipse 30% 80% at 12% 60%,
+      rgba(150, 100, 220, 0.12) 0%,
+      rgba(150, 100, 220, 0) 70%
+    ),
+    /* 색분산 힌트 — 청록 */
+    radial-gradient(
+      ellipse 25% 70% at 88% 35%,
+      rgba(120, 200, 230, 0.1) 0%,
+      rgba(120, 200, 230, 0) 70%
+    );
+}
+
+/* ── 레이어 4: edge / stroke / inner shadow ────────────────────────────── */
+/*
+ * Figma 원본의 gradient stroke + 이너섀도우 두 겹 흉내.
+ *   · border-image: linear-gradient 로 흰색↔투명↔흰색 대각선 stroke.
+ *   · box-shadow inset 두 겹으로 유리 테두리의 부드러운 이너 글로우.
+ * clip-path/mask 와 양립하도록 border-image 는 wrap 수준의 실루엣 안에서 자연스럽게 잘린다.
+ */
+.edge {
+  position: absolute;
+  inset: 0;
+  border: 2px solid transparent;
+  background:
+    linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.95) 0%,
+        rgba(255, 255, 255, 0) 48%,
+        rgba(255, 255, 255, 0.95) 100%
+      )
+      border-box;
+  -webkit-mask:
+    linear-gradient(#000, #000) padding-box,
+    linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000, #000) padding-box,
+    linear-gradient(#000, #000);
+  mask-composite: exclude;
+  box-shadow:
+    inset 3px 3px 4px rgba(255, 255, 255, 0.55),
+    inset -5px -5px 20px rgba(255, 255, 255, 0.38),
+    inset 0 0 1px rgba(255, 255, 255, 0.8);
+  /* lens1 의 border-radius: 50% 은 wrap 에서 오지만 edge 가 이어지려면 자신도 맞춰야 함. */
+  border-radius: inherit;
+}
+
+/* 모바일 — SVG 오버레이와 동일 비율 축소. */
+@media (max-width: 480px) {
+  .lens1Wrap {
+    width: 20.4rem !important;
+    height: 20.4rem !important;
+  }
+
+  .lens2Wrap {
+    width: 16.02rem !important;
+    height: 20.4rem !important;
+  }
+}
