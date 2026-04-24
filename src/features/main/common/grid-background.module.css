@@ -44,6 +44,13 @@
   animation-delay: var(--delay);
 }
 
+/* 그리드가 다른 섹션(#fff)에 완전히 덮인 구간에선 글로우 CSS 애니메이션을 일시 정지.
+   수십 개 셀이 독립적으로 opacity keyframe 을 돌려 compositor 재합성 비용이 계속 발생하던
+   부분 — 화면에 보이지 않으면 paint/composite 둘 다 불필요하므로 안전한 절약 포인트. */
+.background[data-hidden] .glowCell {
+  animation-play-state: paused;
+}
+
 @keyframes pulse {
   0%,
   100% {

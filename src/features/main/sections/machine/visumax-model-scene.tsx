@@ -152,8 +152,11 @@ const BoundedModel = memo(function BoundedModel({
   onReady?: () => void;
 }) {
   return (
-    // damping=0: 카메라 fit 즉시 적용, 기본값(6)은 부드럽게 이동해 "날아오는" 느낌을 줌.
-    <Bounds fit clip margin={1.05} damping={0}>
+    // maxDuration=0: 카메라 fit 애니메이션 지속시간을 0 으로 설정 → 즉시 적용.
+    //   drei v10 에서 기존 `damping` prop 이 제거되고 `maxDuration` / `interpolateFunc`
+    //   조합으로 대체됐다. damping=0 이 원래 수행하던 "날아오는 느낌 제거" 는
+    //   maxDuration=0 으로 동일 효과.
+    <Bounds fit clip margin={1.05} maxDuration={0}>
       <GltfModel url={url} metalness={metalness} roughness={roughness} onReady={onReady} />
     </Bounds>
   );

@@ -74,7 +74,6 @@ export interface MainPageProps {
   academicPublicationsSection: AcademicPublicationsSectionMessages;
 }
 
-const SCROLL_HOT_IDLE_MS = 520;
 /**
  * 3D 글래스 마운트 전략 (하이브리드):
  *
@@ -146,7 +145,6 @@ export const MainPage = ({
    * 섹션 높이가 바뀌어도 DOM 위치만 따라가게 두면 자동으로 트리거가 맞춰진다.
    */
   const youtubeBottomRef = useRef<HTMLDivElement>(null);
-  const [gridScrollHot, setGridScrollHot] = useState(false);
   const [isGridVisible, setIsGridVisible] = useState(true);
   const [isGlassOrbsMounted, setIsGlassOrbsMounted] = useState(GLASS_ORBS_ENABLED);
   /**
@@ -171,7 +169,6 @@ export const MainPage = ({
   const [isGlassRemount, setIsGlassRemount] = useState(false);
   const hasGlassOrbsUnmountedRef = useRef(false);
   const needReadyResetOnRemountRef = useRef(false);
-  const scrollHotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 그리드가 "실제로 화면에 보이는 구간" 을 결정한다.
   // 섹션 배경 조사 결과:
@@ -287,6 +284,21 @@ export const MainPage = ({
     let rafId: number | null = null;
     let scheduled = false;
 
+    // sentinel 의 "문서 기준 절대 Y 좌표" 캐시 — getBoundingClientRect 는 layout 을
+    // 강제하므로 매 프레임마다 호출하지 않고, 초기 1회 + resize + ResizeObserver 이벤트
+    // 로만 갱신한다. 이후엔 `sentinelAbsY - scrollY` 계산으로 viewport-relative top 을
+    // 유추할 수 있어 per-frame layout read 를 완전히 제거할 수 있다.
+    let sentinelAbsY = Number.POSITIVE_INFINITY;
+    const refreshSentinelAbsY = () => {
+      const el = youtubeBottomRef.current;
+      if (!el) {
+        sentinelAbsY = Number.POSITIVE_INFINITY;
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      sentinelAbsY = rect.top + window.scrollY;
+    };
+
     const runFrame = () => {
       scheduled = false;
       rafId = null;
@@ -299,10 +311,8 @@ export const MainPage = ({
 
         const isDesktop =
           window.innerWidth >= GLASS_ORBS_DESKTOP_MIN_WIDTH_PX;
-        const sentinel = youtubeBottomRef.current;
-        const sentinelTop = sentinel
-          ? sentinel.getBoundingClientRect().top
-          : Number.POSITIVE_INFINITY;
+        // per-frame getBoundingClientRect 대신 캐시된 절대 좌표에서 역산.
+        const sentinelTop = sentinelAbsY - y;
         const bottomEnterPx = vh * GLASS_ORBS_BOTTOM_ZONE_ENTER_VH;
         const bottomExitPx = vh * GLASS_ORBS_BOTTOM_ZONE_EXIT_VH;
 
@@ -351,20 +361,27 @@ export const MainPage = ({
       rafId = window.requestAnimationFrame(runFrame);
     };
 
-    const markHot = () => {
-      // hot 플래그는 state 이지만 이미 true 면 재세팅을 피해 setState 반복 억제.
-      setGridScrollHot((prev) => (prev ? prev : true));
-      if (scrollHotTimerRef.current) {
-        clearTimeout(scrollHotTimerRef.current);
+    // 초기 sentinel 좌표 측정 — DOM 이 아직 없으면 다음 프레임에 재시도.
+    const initialSentinelRead = () => {
+      refreshSentinelAbsY();
+      if (!Number.isFinite(sentinelAbsY)) {
+        requestAnimationFrame(initialSentinelRead);
       }
-      scrollHotTimerRef.current = setTimeout(() => {
-        setGridScrollHot(false);
-        scrollHotTimerRef.current = null;
-      }, SCROLL_HOT_IDLE_MS);
     };
+    initialSentinelRead();
 
-    const handleScroll = () => {
-      markHot();
+    // 동적 import 된 하단 섹션이 마운트되며 문서 높이가 변할 수 있으므로
+    // <main> 전체에 ResizeObserver 를 걸어 그때마다 sentinel 좌표를 재측정.
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && mainRef.current) {
+      ro = new ResizeObserver(() => {
+        refreshSentinelAbsY();
+      });
+      ro.observe(mainRef.current);
+    }
+
+    const handleResize = () => {
+      refreshSentinelAbsY();
       schedule();
     };
 
@@ -375,24 +392,23 @@ export const MainPage = ({
       runFrame();
     }
 
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("wheel", markHot, { passive: true });
-    window.addEventListener("resize", schedule);
+    // 스크롤마다 runFrame 을 rAF 로 배칭. wheel 리스너는 제거했다 —
+    // 기존에는 "스크롤 핫" 표식을 위해 setState + setTimeout 을 매 스크롤마다 걸었으나
+    // 해당 상태를 소비하던 grid 색상 보간을 제거하면서 존재 이유가 사라짐.
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", handleResize);
     return () => {
-      window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("wheel", markHot);
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", handleResize);
+      ro?.disconnect();
       if (rafId !== null) window.cancelAnimationFrame(rafId);
-      if (scrollHotTimerRef.current) {
-        clearTimeout(scrollHotTimerRef.current);
-      }
     };
   }, []);
 
   return (
     <main ref={mainRef} className={styles.root}>
       <div className={styles.gridFixed} aria-hidden>
-        <GridBackground scrollHot={gridScrollHot} visible={isGridVisible} />
+        <GridBackground visible={isGridVisible} />
       </div>
       {GLASS_ORBS_ENABLED ? (
         <>

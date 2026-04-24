@@ -556,19 +556,36 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     glassTarget?.addEventListener("transitionend", handleGlassTransitionEnd);
 
     const rafId = requestAnimationFrame(apply);
+
+    // apply() 는 내부에서 `scrollHeight` 와 sentinel `getBoundingClientRect` 같은
+    // 레이아웃 읽기를 수행한다. 스크롤 이벤트 한 프레임에 여러 번 발생하면(네이티브
+    // 모멘텀 등) 중복 레이아웃 읽기가 누적되므로 rAF 로 1프레임 1회로 병합.
+    //   · scheduleIdleApply 는 "스크롤 정지 후 한번 더" 가 목적이라 이벤트 단위에 그대로 둔다.
+    let applyRafId: number | null = null;
+    const scheduleApply = () => {
+      if (applyRafId !== null) return;
+      applyRafId = requestAnimationFrame(() => {
+        applyRafId = null;
+        apply();
+      });
+    };
+
     const handleScroll = () => {
-      apply();
+      scheduleApply();
       scheduleIdleApply();
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", apply);
+    window.addEventListener("resize", scheduleApply);
     return () => {
       cancelAnimationFrame(rafId);
       if (showRafId) {
         cancelAnimationFrame(showRafId);
       }
+      if (applyRafId !== null) {
+        cancelAnimationFrame(applyRafId);
+      }
       window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", apply);
+      window.removeEventListener("resize", scheduleApply);
       glassTarget?.removeEventListener("transitionend", handleGlassTransitionEnd);
       if (idleApplyTimer) {
         clearTimeout(idleApplyTimer);

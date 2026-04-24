@@ -58,12 +58,6 @@ const CURVE_DEPTH_PX = 40;
 const MAX_SEGMENT_COUNT = 32;
 
 export type GridBackgroundProps = {
-  /**
-   * 스크롤 hot 플래그. 더 이상 배경 색상을 바꾸는 데 쓰지 않고
-   * `.glowLayer` 페이드아웃(스크롤 중 반짝임 숨김) 에만 사용된다.
-   * 스크롤 중/정지 간 색상 톤 이질감이 글래스 렌즈 투과 이미지와 어긋나 보여 제거함.
-   */
-  scrollHot?: boolean;
   visible?: boolean;
 };
 
@@ -153,7 +147,7 @@ const HorizontalLinesLayer = forwardRef<HLinesHandle, HLinesProps>(function Hori
   );
 });
 
-export function GridBackground({ scrollHot = false, visible = true }: GridBackgroundProps) {
+export function GridBackground({ visible = true }: GridBackgroundProps) {
   const backgroundRef = useRef<HTMLDivElement>(null);
   const visibleRef = useRef(visible);
   const scrollWarpModeRef = useRef<"down" | "up">("down");
