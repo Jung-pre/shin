@@ -77,9 +77,18 @@
 }
 
 /*
- * 4방향 소프트 딤 오버레이 — 배경색(--slide-section-bg)으로 가장자리를 덮는다.
- * --slide-vignette-opacity (0~1) 로 딤 강도 조절. 기본 0.85.
- * 0 = 색상 오버레이 없음(mask 만으로 fade), 1 = 배경색 100% 불투명.
+ * 4방향 소프트 딤 오버레이 — 배경색(--slide-section-bg)을 mask 로 가장자리에만 남긴다.
+ *
+ * 이전 방식(두 linear-gradient 를 background 레이어로 겹침)은 multiple backgrounds 합성
+ * 규칙상 두 gradient 의 부분 투명 영역이 겹쳐, 화면 중앙에 "타원/원형 덩어리" 처럼 보이는
+ * 시각적 아티팩트가 발생했다.
+ *
+ * 해결: 배경은 단색(--slide-section-bg) 한 장, 두 방향 mask 를 "합집합(add/source-over)"
+ * 으로 합쳐 가장자리 프레임 모양만 남김 → 중앙은 투명, 네 변/모서리만 균일한 딤.
+ *
+ * --slide-vignette       : 좌우 페이드 폭(%)
+ * --slide-vignette-y     : 상하 페이드 폭(%)
+ * --slide-vignette-opacity (0~1) : 딤 강도
  */
 .vignette {
   position: absolute;
@@ -87,23 +96,39 @@
   z-index: 2;
   pointer-events: none;
   opacity: var(--slide-vignette-opacity, 0.85);
-  /* 좌우 레이어 */
-  background-image:
+  background: var(--slide-section-bg, transparent);
+  -webkit-mask-image:
     linear-gradient(
       to right,
-      var(--slide-section-bg, transparent) 0%,
+      #000 0%,
       transparent var(--slide-vignette, 16%),
       transparent calc(100% - var(--slide-vignette, 16%)),
-      var(--slide-section-bg, transparent) 100%
+      #000 100%
     ),
-    /* 상하 레이어 */
     linear-gradient(
       to bottom,
-      var(--slide-section-bg, transparent) 0%,
+      #000 0%,
       transparent var(--slide-vignette-y, 12%),
       transparent calc(100% - var(--slide-vignette-y, 12%)),
-      var(--slide-section-bg, transparent) 100%
+      #000 100%
     );
+  -webkit-mask-composite: source-over;
+  mask-image:
+    linear-gradient(
+      to right,
+      #000 0%,
+      transparent var(--slide-vignette, 16%),
+      transparent calc(100% - var(--slide-vignette, 16%)),
+      #000 100%
+    ),
+    linear-gradient(
+      to bottom,
+      #000 0%,
+      transparent var(--slide-vignette-y, 12%),
+      transparent calc(100% - var(--slide-vignette-y, 12%)),
+      #000 100%
+    );
+  mask-composite: add;
 }
 
 .copy {
