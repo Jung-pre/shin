@@ -87,7 +87,7 @@ export function CylinderSlideCanvas({
   realtimeTuning = false,
   isActive,
 }: CylinderSlideCanvasProps) {
-  const velocityRef = useScrollVelocity();
+  const velocityRef = useScrollVelocity(isActive);
 
   return (
     <Canvas
@@ -214,7 +214,9 @@ function CylinderGroup({
   const tiltRef = useRef<Group>(null);
   const invalidate = useThree((s) => s.invalidate);
   const pointerTiltTargetRef = useRef({ x: 0, y: 0 });
+  const latestPointerRef = useRef({ x: 0, y: 0 });
   const isActiveRef = useRef(isActive);
+  const lastProgressRef = useRef(progressRef.current ?? 0);
 
   const stepRad = useMemo(
     () => ((2 * Math.PI) / slides.length) * spacingFactor,
@@ -240,27 +242,59 @@ function CylinderGroup({
     if (!isActive) {
       pointerTiltTargetRef.current.x = 0;
       pointerTiltTargetRef.current.y = 0;
+      const tilt = tiltRef.current;
+      if (tilt) {
+        tilt.rotation.x = tiltRadRef.current;
+        tilt.rotation.y = 0;
+      }
     }
     invalidate();
   }, [invalidate, isActive]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let rafId = 0;
 
     const handleMouseMove = (event: MouseEvent) => {
-      const w = window.innerWidth || 1;
-      const h = window.innerHeight || 1;
-      const nx = (event.clientX / w) * 2 - 1;
-      const ny = (event.clientY / h) * 2 - 1;
-      pointerTiltTargetRef.current.x = -ny * POINTER_TILT_MAX_RAD;
-      pointerTiltTargetRef.current.y = nx * POINTER_TILT_MAX_RAD;
-      if (isActiveRef.current) {
+      latestPointerRef.current.x = event.clientX;
+      latestPointerRef.current.y = event.clientY;
+      if (!isActiveRef.current || rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        const w = window.innerWidth || 1;
+        const h = window.innerHeight || 1;
+        const nx = (latestPointerRef.current.x / w) * 2 - 1;
+        const ny = (latestPointerRef.current.y / h) * 2 - 1;
+        pointerTiltTargetRef.current.x = -ny * POINTER_TILT_MAX_RAD;
+        pointerTiltTargetRef.current.y = nx * POINTER_TILT_MAX_RAD;
         invalidate();
-      }
+      });
     };
 
     window.addEventListener("mousemove", handleMouseMove, { passive: true });
-    return () => window.removeEventListener("mousemove", handleMouseMove);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, [invalidate]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let rafId = 0;
+
+    const scheduleFrame = () => {
+      if (!isActiveRef.current || rafId) return;
+      rafId = window.requestAnimationFrame(() => {
+        rafId = 0;
+        invalidate();
+      });
+    };
+
+    window.addEventListener("scroll", scheduleFrame, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", scheduleFrame);
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
   }, [invalidate]);
 
   useFrame((_, delta) => {
@@ -268,6 +302,8 @@ function CylinderGroup({
     if (!group) return;
 
     const p = progressRef.current ?? 0;
+    const progressChanged = Math.abs(p - lastProgressRef.current) > 0.0001;
+    lastProgressRef.current = p;
     const total = (slides.length - 1) * stepRad;
     group.rotation.y = -p * total;
 
@@ -278,15 +314,24 @@ function CylinderGroup({
     if (tilt) {
       const targetX = tiltRadRef.current + pointerTiltTargetRef.current.x;
       const targetY = pointerTiltTargetRef.current.y;
+      const dx = targetX - tilt.rotation.x;
+      const dy = targetY - tilt.rotation.y;
       const lerp = 1 - Math.exp(-delta * POINTER_TILT_LERP);
-      tilt.rotation.x += (targetX - tilt.rotation.x) * lerp;
-      tilt.rotation.y += (targetY - tilt.rotation.y) * lerp;
+      tilt.rotation.x += dx * lerp;
+      tilt.rotation.y += dy * lerp;
       // progress 가 i/(N-1) 일 때 활성 카드의 local Y = i * cardYStep
       // → 월드 Y 를 -p*(N-1)*cardYStep 만큼 이동하면 활성 카드 Y=0 유지.
       tilt.position.y = -p * (slides.length - 1) * cardYStep;
     }
 
-    if (isActive) invalidate();
+    const tiltMoving = tilt
+      ? Math.abs(pointerTiltTargetRef.current.x + tiltRadRef.current - tilt.rotation.x) > 0.0002 ||
+        Math.abs(pointerTiltTargetRef.current.y - tilt.rotation.y) > 0.0002
+      : false;
+    const velocityMoving = Math.abs(velocityRef.current) > 0.001;
+    if (isActive && (progressChanged || tiltMoving || velocityMoving)) {
+      invalidate();
+    }
   });
 
   // 파라미터 변화 시 즉각 한 프레임 강제

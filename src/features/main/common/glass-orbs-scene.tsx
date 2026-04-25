@@ -1002,6 +1002,7 @@ const DEFAULT_SOURCE_IMAGE = "/main/img_hero.webp";
  *   - true: "옵션 열기" 토글 + Scene Config 팝업 노출.
  */
 const SHOW_GLASS_SCENE_CONFIG_PANEL = false;
+const SHOW_GLASS_HDR_LAYER_PANEL = true;
 
 /* ---------- 히어로 인트로 애니메이션 ---------- */
 
@@ -1212,6 +1213,9 @@ export const GlassOrbsScene = ({
       </div>
       {SHOW_GLASS_SCENE_CONFIG_PANEL ? (
         <GlassSceneConfigPanel config={config} onChange={setConfig} onReset={resetConfig} variant="full" />
+      ) : null}
+      {SHOW_GLASS_HDR_LAYER_PANEL ? (
+        <GlassSceneConfigPanel config={config} onChange={setConfig} onReset={resetConfig} variant="hdr" />
       ) : null}
     </>
   );

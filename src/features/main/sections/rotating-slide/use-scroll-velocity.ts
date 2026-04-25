@@ -18,8 +18,9 @@ import { useEffect, useRef } from "react";
  *   - Rotating slide 의 셰이더 `uVelocity` — 카드 UV 를 스크롤 속도만큼 당겨
  *     "관성이 남아있는" 느낌을 만든다.
  */
-export function useScrollVelocity() {
+export function useScrollVelocity(isActive = true) {
   const velocityRef = useRef(0);
+  const isActiveRef = useRef(isActive);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -28,6 +29,12 @@ export function useScrollVelocity() {
     let lastT = performance.now();
 
     const loop = () => {
+      if (!isActiveRef.current) {
+        velocityRef.current = 0;
+        raf = 0;
+        return;
+      }
+
       const now = performance.now();
       const dt = Math.max(1, now - lastT); // ms, 0 방지
       const y = window.scrollY;
@@ -43,12 +50,34 @@ export function useScrollVelocity() {
       const prev = velocityRef.current;
       velocityRef.current = prev + (instant - prev) * 0.18;
 
+      if (Math.abs(velocityRef.current) < 0.001 && Math.abs(instant) < 0.001) {
+        velocityRef.current = 0;
+        raf = 0;
+        return;
+      }
       raf = requestAnimationFrame(loop);
     };
-    raf = requestAnimationFrame(loop);
 
-    return () => cancelAnimationFrame(raf);
+    const startLoop = () => {
+      if (!isActiveRef.current || raf) return;
+      lastT = performance.now() - 16;
+      raf = requestAnimationFrame(loop);
+    };
+
+    window.addEventListener("scroll", startLoop, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", startLoop);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
+
+  useEffect(() => {
+    isActiveRef.current = isActive;
+    if (!isActive) {
+      velocityRef.current = 0;
+    }
+  }, [isActive]);
 
   return velocityRef;
 }
