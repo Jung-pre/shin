@@ -2,6 +2,8 @@
   --brand-SSG-000: #812990;
   --background: #060912;
   --foreground: #f4f7ff;
+  /* GNB — 히어로·3D(예: 12k)·도구 패널(9k) 위에 항상 최상단 */
+  --z-gnb: 20000;
   --font-pretendard-stack: "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   /* 한국어 사이트에서 영어 구간용 — Marcellus + 한글 글립 폴백 */
   --font-marcellus-stack: var(--font-marcellus), "Pretendard", Georgia, serif;

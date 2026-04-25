@@ -39,7 +39,6 @@
 }
 
 .copy {
-  position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
@@ -228,9 +227,9 @@
 }
 
 .machineInfoBlock800 {
-  top: 45.12rem;
-  left: 41.12rem;
-  bottom: auto;
+  top: auto;
+  left: 31.68rem;
+  bottom: 12.06rem;
 }
 
 .machineInfoBlock500 {
@@ -241,8 +240,9 @@
 }
 
 .machineInfoBlockCatalys {
-  top: 38.25rem;
+  top: 36.25rem;
   left: 34.44rem;
+  right: auto;
   bottom: auto;
 }
 
@@ -361,7 +361,7 @@
 .imageWrapCatalys {
   left: auto;
   top: 9.56rem;
-  right: -10.12rem;
+  right: calc(8rem - 8.12rem);
   bottom: auto;
   width: 59.125rem;
   height: 47.8125rem;

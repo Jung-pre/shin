@@ -15,7 +15,13 @@ import {
 import gsap from "gsap";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, MeshTransmissionMaterial } from "@react-three/drei";
-import { SphereGeometry, type Group as ThreeGroup, type Mesh as ThreeMesh, type Texture } from "three";
+import {
+  SphereGeometry,
+  SpotLight,
+  type Group as ThreeGroup,
+  type Mesh as ThreeMesh,
+  type Texture,
+} from "three";
 import {
   ADDITION,
   Brush,
@@ -32,9 +38,6 @@ import {
   type RimPreset,
   type OrbMergeMode,
   DEFAULT_CONFIG,
-  ORB_MERGE_MODES,
-  ENVIRONMENT_PRESETS,
-  RIM_PRESETS,
 } from "./glass-scene-config.types";
 import { resolveLensScales } from "./glass-lens-geometry";
 import { GlassSceneConfigPanel } from "./glass-scene-config-panel";
@@ -70,10 +73,22 @@ const ORB_POSITION: Vector3Tuple = [0, 0, 0];
 /** 커스텀 HDR 파일 경로 매핑 — preset 값이 여기 있으면 drei preset 대신 파일을 직접 로드 */
 const CUSTOM_HDR_FILES: Partial<Record<EnvironmentPreset, string>> = {
   citrus_orchard: "/main/citrus_orchard_road_puresky_1k.hdr",
+  citrus_orchard_road_puresky: "/main/citrus_orchard_road_puresky_1k.hdr",
   suburban_garden: "/main/suburban_garden_1k.hdr",
   winter_evening: "/main/winter_evening_1k.hdr",
   blaubeuren_church_square: "/main/blaubeuren_church_square_1k.hdr",
+  bryanston_park_sunrise: "/main/bryanston_park_sunrise_1k.hdr",
+  plains_sunset: "/main/plains_sunset_1k.hdr",
   passendorf_snow: "/main/passendorf_snow_1k.hdr",
+  qwantani_dusk_2_puresky: "/main/qwantani_dusk_2_puresky_1k.hdr",
+  studio_kominka_02: "/main/studio_kominka_02_1k.hdr",
+  studio_kontrast_04: "/main/studio_kontrast_04_1k.hdr",
+  ferndale_studio_05: "/main/ferndale_studio_05_1k.hdr",
+  ferndale_studio_06: "/main/ferndale_studio_06_1k.hdr",
+  ferndale_studio_07: "/main/ferndale_studio_07_1k.hdr",
+  ferndale_studio_08: "/main/ferndale_studio_08_1k.hdr",
+  ferndale_studio_11: "/main/ferndale_studio_11_1k.hdr",
+  ferndale_studio_12: "/main/ferndale_studio_12_1k.hdr",
 };
 
 /* ---------- 3D 컴포넌트 ---------- */
@@ -108,6 +123,7 @@ const GlassOrb = ({
     <mesh position={position} scale={scale}>
       <sphereGeometry args={[ORB_RADIUS, 96, 96]} />
       <MeshTransmissionMaterial
+        buffer={buffer}
         backside={config.backside}
         backsideThickness={config.backsideThickness}
         samples={config.samples}
@@ -123,8 +139,8 @@ const GlassOrb = ({
         distortionScale={config.distortionScale}
         temporalDistortion={0}
         ior={config.ior}
+        attenuationColor="#ffffff"
         attenuationDistance={config.attenuationDistance}
-        buffer={buffer}
         transparent
       />
     </mesh>
@@ -216,23 +232,7 @@ const CsgLens = ({ buffer, config }: CsgLensProps) => {
     geomB.dispose();
     result.geometry.dispose();
     return out;
-  }, [
-    evaluator,
-    config.orbMerge,
-    config.orb1OffsetX,
-    config.orb1OffsetY,
-    config.orb1OffsetZ,
-    config.orb2Enabled,
-    config.orb2OffsetX,
-    config.orb2OffsetY,
-    config.orb2OffsetZ,
-    config.orb2Scale,
-    config.orbScaleXY,
-    config.orbScaleZ,
-    config.ballMode,
-    config.lensFlatness,
-    config.lensScalesManual,
-  ]);
+  }, [evaluator, config]);
 
   useEffect(() => {
     return () => {
@@ -243,6 +243,7 @@ const CsgLens = ({ buffer, config }: CsgLensProps) => {
   return (
     <mesh geometry={geometry}>
       <MeshTransmissionMaterial
+        buffer={buffer}
         backside={config.backside}
         backsideThickness={config.backsideThickness}
         samples={config.samples}
@@ -258,8 +259,8 @@ const CsgLens = ({ buffer, config }: CsgLensProps) => {
         distortionScale={config.distortionScale}
         temporalDistortion={0}
         ior={config.ior}
+        attenuationColor="#ffffff"
         attenuationDistance={config.attenuationDistance}
-        buffer={buffer}
         transparent
       />
     </mesh>
@@ -414,6 +415,44 @@ interface SceneLightsProps {
   config: SceneConfig;
 }
 
+/**
+ * 히어로 유리: HDR/Lightformer 외에 **직접광**으로 스팩슬·림 띠를 보강.
+ * MeshPhysical 전송의 clearcoat/표면반사·프레널 가장자리가 포인트/스팟에 반응해
+ * 참고(스튜디오) 이미지의 상단 호·측면 점·하단 웜 실루엣에 가깝게 정렬.
+ */
+const LensRigDirectLights = () => {
+  const spotRef = useRef<SpotLight | null>(null);
+  const { scene } = useThree();
+
+  useLayoutEffect(() => {
+    const L = spotRef.current;
+    if (!L) return;
+    L.target.position.set(0, 0, 0);
+    scene.add(L.target);
+    return () => {
+      scene.remove(L.target);
+    };
+  }, [scene]);
+
+  return (
+    <group>
+      <spotLight
+        ref={spotRef}
+        position={[-8.2, 9.0, 10.2]}
+        angle={0.52}
+        penumbra={0.78}
+        intensity={0.75}
+        color="#fffef8"
+        castShadow={false}
+      />
+      <pointLight position={[-5.2, 3.6, 8.0]} intensity={0.4} color="#f5f8ff" decay={1.4} />
+      <pointLight position={[-1.4, 6.2, 5.0]} intensity={0.25} color="#e6efff" decay={1.4} />
+      <pointLight position={[8.2, 0.2, 5.6]} intensity={0.3} color="#f3f0ff" decay={1.5} />
+      <pointLight position={[0, -6.8, 3.6]} intensity={0.32} color="#ffcfac" decay={1.2} />
+    </group>
+  );
+};
+
 const SceneLights = ({ config }: SceneLightsProps) => {
   return (
     <>
@@ -421,7 +460,9 @@ const SceneLights = ({ config }: SceneLightsProps) => {
       <directionalLight
         intensity={config.dirIntensity}
         position={[config.dirPosX, config.dirPosY, config.dirPosZ]}
+        color="#fff6f0"
       />
+      <LensRigDirectLights />
     </>
   );
 };
@@ -692,17 +733,7 @@ const LensContent = ({
     const { xy: eff } = resolveLensScales(config);
     const effectiveXY = config.ballMode ? 1 : eff;
     return targetDiameterWorld / (baseDiameterWorld * effectiveXY);
-  }, [
-    viewport.width,
-    size.width,
-    rootFontSize,
-    config.maxDiameterRem,
-    config.ballMode,
-    config.orbScaleXY,
-    config.orbScaleZ,
-    config.lensFlatness,
-    config.lensScalesManual,
-  ]);
+  }, [viewport.width, size.width, rootFontSize, config]);
 
   /**
    * demand 모드에선 buffer 내부 캔버스 픽셀 변경을 R3F 가 감지하지 못한다.
@@ -898,7 +929,9 @@ function GlassOrbsContent({
   mouseTiltHoldDocYRef,
   introMotionRef,
 }: GlassOrbsContentProps) {
-  if (!bufferTexture || !isBufferReady) return null;
+  if (!isBufferReady || !bufferTexture) {
+    return null;
+  }
 
   return (
     <>
@@ -1017,7 +1050,7 @@ const DEFAULT_SOURCE_IMAGE = "/main/img_hero.webp";
  *   - true: "옵션 열기" 토글 + Scene Config 팝업 노출.
  */
 const SHOW_GLASS_SCENE_CONFIG_PANEL = false;
-const SHOW_GLASS_HDR_LAYER_PANEL = true;
+const SHOW_GLASS_HDR_LAYER_PANEL = false;
 
 /* ---------- 히어로 인트로 애니메이션 ---------- */
 
@@ -1146,7 +1179,6 @@ export const GlassOrbsScene = ({
   useEffect(() => {
     if (
       !isHeroSource ||
-      !isSourceReady ||
       !envSettled ||
       !heroCanvasStable ||
       hasHeroGlassIntroPlayedOnce ||
@@ -1198,7 +1230,7 @@ export const GlassOrbsScene = ({
         invalidateCallback();
       }
     };
-  }, [envSettled, heroCanvasStable, invalidateCallback, isHeroSource, isSourceReady, midX, config.orb1OffsetX, config.orb2OffsetX]);
+  }, [envSettled, heroCanvasStable, invalidateCallback, isHeroSource, midX, config.orb1OffsetX, config.orb2OffsetX]);
 
   return (
     <>

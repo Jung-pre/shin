@@ -41,7 +41,7 @@ const MODE_SWITCH_DELTA_THRESHOLD = 1.2;
  *   값을 키울수록 전체가 더 강하게 활처럼 휨. (순수 각도 °는 아님, 변위로 체감 조절)
  *   더 휨이 필요하면 이 숫자만 올리면 됨(세로선 pad = 이 값 + 2 자동).
  */
-const CURVE_DEPTH_PX = 248;
+const CURVE_DEPTH_PX = 124;
 /** 가로 라인 1개당 최대 세그먼트 수 */
 const MAX_SEGMENT_COUNT = 32;
 /**
@@ -56,6 +56,42 @@ const WARP_RETAIN = 0.72;
  */
 const WARP_DIR_BLEND = 0.11;
 
+/**
+ * SVG 좌표계는 y+ 가 아래 방향이다.
+ *
+ * 이미지 기준 정의:
+ * - 일반: 상단은 아래로, 하단은 위로 약하게 말리는 기본 배럴 곡률
+ * - 스크롤 다운: 상단 라인은 일자에 가깝고, 하단으로 갈수록 위로 휨
+ * - 스크롤 업: 하단 라인은 일자에 가깝고, 상단으로 갈수록 아래로 휨
+ */
+const GRID_WARP_IDLE = 0;
+const GRID_WARP_SCROLL_DOWN = -1;
+const GRID_WARP_SCROLL_UP = 1;
+const GRID_BASE_CURVE_STRENGTH = 0.42;
+const GRID_SCROLL_CURVE_STRENGTH = 0.86;
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
+const getHorizontalCurveWeight = (y: number, height: number, ratio: number) => {
+  const yNorm = clamp01(y / Math.max(1, height));
+  const absRatio = Math.abs(ratio);
+  const easedRatio = Math.pow(absRatio, 0.72);
+  const idleWeight = (0.5 - yNorm) * 2 * GRID_BASE_CURVE_STRENGTH;
+  const scrollWeight =
+    ratio < 0
+      ? -yNorm * GRID_SCROLL_CURVE_STRENGTH
+      : (1 - yNorm) * GRID_SCROLL_CURVE_STRENGTH;
+
+  // ratio≈0 이면 easedRatio≈0 → idle만 (스크롤 쪽 scrollWeight 는 블렌드에 반영되지 않음)
+  return idleWeight + (scrollWeight - idleWeight) * easedRatio;
+};
+
+const getWarpedY = (x: number, y: number, width: number, height: number, ratio: number) => {
+  const xNorm = (x / Math.max(1, width)) * 2 - 1;
+  const arc = Math.max(0, 1 - xNorm * xNorm);
+  return y + arc * CURVE_DEPTH_PX * getHorizontalCurveWeight(y, height, ratio);
+};
+
 export type GridBackgroundProps = {
   visible?: boolean;
 };
@@ -68,15 +104,11 @@ interface GridScrollWarp {
 
 // ── 그리드 라인 워프 — React state 경유 없이 SVG path `d` 를 직접 업데이트 ──────
 //
-// 공통 변형: 모든 격자 점 (x, y) → (x, y + arc(x) * magnitude)
-//   arc(x) = max(0, 1 - xNorm²)   // 중앙 1, 좌우 끝 0 인 종(bell) 모양
-//   xNorm  = x / width * 2 - 1    // [-1, 1] 정규화
-//   magnitude = eased(|ratio|) * CURVE_DEPTH_PX * axis.dir   (dir ∈ [-1,1] 보간)
+// 공통: (x, y) → (x, getWarpedY) — arc(x) × y별 weight(y) × |ratio| 완화
 //
-// 이 변형 하나로 격자 전체 면이 한 장의 활처럼 휜 것처럼 보인다.
-//   가로 라인(y=y_i): 점마다 dy 가 달라 활 모양 곡선
-//   세로 라인(x=x_j): 점마다 dy 가 같아 기둥 전체가 동일 dy 만큼 상하 이동
-//                    → 중앙 열은 가장 많이, 양끝 열은 0 → 기둥들의 배열이 활처럼 분포
+// y 위치·스크롤 ratio 에 따라 weight(y)가 달라짐(일반/다운/업).
+//   가로 라인: 각 (x, y)에 getWarpedY
+//   세로 라인: (x, y)를 y 방향으로 잘라 폴리라인 (한 x에서도 y에 따라 warped Y가 다름)
 //
 interface LinesHandle {
   /** 현재 refs 로 즉시 다시 그린다. */
@@ -87,50 +119,39 @@ interface LinesHandle {
 interface HLinesProps {
   yStops: number[];
   width: number;
+  height: number;
   cellSizePx: number;
   currentRef: MutableRefObject<number>;
-  warpAxisRef: MutableRefObject<GridScrollWarp>;
 }
 
 const HorizontalLinesLayer = forwardRef<LinesHandle, HLinesProps>(function HorizontalLinesLayer(
-  { yStops, width, cellSizePx, currentRef, warpAxisRef },
+  { yStops, width, height, cellSizePx, currentRef },
   ref,
 ) {
   const pathRefs = useRef<Array<SVGPathElement | null>>([]);
 
   const rebuild = useCallback(() => {
     const ratio = currentRef.current;
-    const absRatio = Math.abs(ratio);
     const segCount = Math.min(
       MAX_SEGMENT_COUNT,
       Math.max(16, Math.ceil(width / cellSizePx) * 4),
     );
-    const dir = warpAxisRef.current.dir;
-    const eased = Math.pow(absRatio, 0.72);
-    const magnitude = eased * CURVE_DEPTH_PX * dir;
-    const invW = 1 / Math.max(1, width);
 
     for (let i = 0; i < yStops.length; i++) {
       const path = pathRefs.current[i];
       if (!path) continue;
       const y = yStops[i];
-      let d: string;
-      if (absRatio < EPSILON) {
-        d = `M 0 ${y} L ${width} ${y}`;
-      } else {
-        const parts: string[] = [];
-        for (let s = 0; s <= segCount; s++) {
-          const x = (width * s) / segCount;
-          const xNorm = x * invW * 2 - 1;
-          const arc = Math.max(0, 1 - xNorm * xNorm);
-          const dy = arc * magnitude;
-          parts.push(`${s === 0 ? "M" : "L"} ${x.toFixed(1)} ${(y + dy).toFixed(2)}`);
-        }
-        d = parts.join(" ");
+      const parts: string[] = [];
+      for (let s = 0; s <= segCount; s++) {
+        const x = (width * s) / segCount;
+        parts.push(
+          `${s === 0 ? "M" : "L"} ${x.toFixed(1)} ${getWarpedY(x, y, width, height, ratio).toFixed(2)}`,
+        );
       }
+      const d = parts.join(" ");
       path.setAttribute("d", d);
     }
-  }, [yStops, width, cellSizePx, currentRef, warpAxisRef]);
+  }, [yStops, width, height, cellSizePx, currentRef]);
 
   useImperativeHandle(ref, () => ({ rebuild }), [rebuild]);
 
@@ -161,45 +182,31 @@ interface GlowCellItem {
 interface GlowCellsProps {
   cells: GlowCellItem[];
   width: number;
+  height: number;
   currentRef: MutableRefObject<number>;
-  warpAxisRef: MutableRefObject<GridScrollWarp>;
 }
 
 const GlowCellsLayer = forwardRef<LinesHandle, GlowCellsProps>(function GlowCellsLayer(
-  { cells, width, currentRef, warpAxisRef },
+  { cells, width, height, currentRef },
   ref,
 ) {
   const pathRefs = useRef<Array<SVGPathElement | null>>([]);
 
   const rebuild = useCallback(() => {
     const ratio = currentRef.current;
-    const absRatio = Math.abs(ratio);
-    const dir = warpAxisRef.current.dir;
-    const eased = Math.pow(absRatio, 0.72);
-    const magnitude = eased * CURVE_DEPTH_PX * dir;
-    const invW = 1 / Math.max(1, width);
 
     for (let i = 0; i < cells.length; i++) {
       const path = pathRefs.current[i];
       if (!path) continue;
       const { x0, y0, x1, y1 } = cells[i];
-      let d: string;
-      if (absRatio < EPSILON) {
-        d = `M ${x0} ${y0} L ${x1} ${y0} L ${x1} ${y1} L ${x0} ${y1} Z`;
-      } else {
-        const xn0 = x0 * invW * 2 - 1;
-        const xn1 = x1 * invW * 2 - 1;
-        const dy0 = Math.max(0, 1 - xn0 * xn0) * magnitude;
-        const dy1 = Math.max(0, 1 - xn1 * xn1) * magnitude;
-        d =
-          `M ${x0} ${(y0 + dy0).toFixed(2)} ` +
-          `L ${x1} ${(y0 + dy1).toFixed(2)} ` +
-          `L ${x1} ${(y1 + dy1).toFixed(2)} ` +
-          `L ${x0} ${(y1 + dy0).toFixed(2)} Z`;
-      }
+      const d =
+        `M ${x0} ${getWarpedY(x0, y0, width, height, ratio).toFixed(2)} ` +
+        `L ${x1} ${getWarpedY(x1, y0, width, height, ratio).toFixed(2)} ` +
+        `L ${x1} ${getWarpedY(x1, y1, width, height, ratio).toFixed(2)} ` +
+        `L ${x0} ${getWarpedY(x0, y1, width, height, ratio).toFixed(2)} Z`;
       path.setAttribute("d", d);
     }
-  }, [cells, width, currentRef, warpAxisRef]);
+  }, [cells, width, height, currentRef]);
 
   useImperativeHandle(ref, () => ({ rebuild }), [rebuild]);
 
@@ -220,50 +227,45 @@ const GlowCellsLayer = forwardRef<LinesHandle, GlowCellsProps>(function GlowCell
 });
 
 // ── 세로 라인 ──────────────────────────────────────────────────────────────────
-// 세로 라인은 x=x_j 에 고정되므로 같은 기둥 위의 모든 점 dy = arc(x_j)·mag 가 동일.
-// 따라서 기둥 자체는 여전히 "직선" 이지만, 기둥 배열의 시작/끝 Y 가
-//   중앙 기둥 ↓(또는 ↑) 최대, 양끝 기둥 0
-// 형태로 분포해 격자 면 전체가 활처럼 휜 것처럼 보인다.
+// y에 따라 weight가 달라지므로 (x, y) → getWarpedY 로 세로로 샘플링한 폴리라인.
 interface VLinesProps {
   xStops: number[];
   height: number;
   width: number;
+  cellSizePx: number;
   currentRef: MutableRefObject<number>;
-  warpAxisRef: MutableRefObject<GridScrollWarp>;
 }
 
 const VerticalLinesLayer = forwardRef<LinesHandle, VLinesProps>(function VerticalLinesLayer(
-  { xStops, height, width, currentRef, warpAxisRef },
+  { xStops, height, width, cellSizePx, currentRef },
   ref,
 ) {
   const pathRefs = useRef<Array<SVGPathElement | null>>([]);
 
   const rebuild = useCallback(() => {
     const ratio = currentRef.current;
-    const absRatio = Math.abs(ratio);
-    const dir = warpAxisRef.current.dir;
-    const eased = Math.pow(absRatio, 0.72);
-    const magnitude = eased * CURVE_DEPTH_PX * dir;
-    const invW = 1 / Math.max(1, width);
-    // 기둥이 통째로 이동해도 상/하단이 잘리지 않도록 여유
-    const pad = CURVE_DEPTH_PX + 2;
+    const ySegCount = Math.min(
+      MAX_SEGMENT_COUNT,
+      Math.max(16, Math.ceil(height / cellSizePx) * 4),
+    );
+    const padY = CURVE_DEPTH_PX + 2;
+    const y0 = -padY;
+    const y1 = height + padY;
 
     for (let j = 0; j < xStops.length; j++) {
       const path = pathRefs.current[j];
       if (!path) continue;
       const x = xStops[j];
-      let d: string;
-      if (absRatio < EPSILON) {
-        d = `M ${x} 0 L ${x} ${height}`;
-      } else {
-        const xNorm = x * invW * 2 - 1;
-        const arc = Math.max(0, 1 - xNorm * xNorm);
-        const dy = arc * magnitude;
-        d = `M ${x} ${(-pad + dy).toFixed(2)} L ${x} ${(height + pad + dy).toFixed(2)}`;
+      const parts: string[] = [];
+      for (let s = 0; s <= ySegCount; s++) {
+        const t = s / ySegCount;
+        const y = y0 + t * (y1 - y0);
+        const yw = getWarpedY(x, y, width, height, ratio);
+        parts.push(`${s === 0 ? "M" : "L"} ${x.toFixed(2)} ${yw.toFixed(2)}`);
       }
-      path.setAttribute("d", d);
+      path.setAttribute("d", parts.join(" "));
     }
-  }, [xStops, height, width, currentRef, warpAxisRef]);
+  }, [xStops, height, width, cellSizePx, currentRef]);
 
   useImperativeHandle(ref, () => ({ rebuild }), [rebuild]);
 
@@ -286,7 +288,10 @@ const VerticalLinesLayer = forwardRef<LinesHandle, VLinesProps>(function Vertica
 export function GridBackground({ visible = true }: GridBackgroundProps) {
   const backgroundRef = useRef<HTMLDivElement>(null);
   const visibleRef = useRef(visible);
-  const gridWarpRef = useRef<GridScrollWarp>({ intent: -1, dir: -1 });
+  const gridWarpRef = useRef<GridScrollWarp>({
+    intent: GRID_WARP_SCROLL_DOWN,
+    dir: GRID_WARP_SCROLL_DOWN,
+  });
   const rafRef = useRef<number | null>(null);
   const targetRef = useRef(0);
   const currentRef = useRef(0);
@@ -320,9 +325,9 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
       // 히어로를 벗어나는 순간 워프를 즉시 원위치로 복귀
       hasScrolledRef.current = false;
       currentRef.current = 0;
-      targetRef.current = 0;
-      gridWarpRef.current.intent = -1;
-      gridWarpRef.current.dir = 0;
+      targetRef.current = GRID_WARP_IDLE;
+      gridWarpRef.current.intent = GRID_WARP_SCROLL_DOWN;
+      gridWarpRef.current.dir = GRID_WARP_IDLE;
       hLinesHandleRef.current?.rebuild();
       vLinesHandleRef.current?.rebuild();
       cellsHandleRef.current?.rebuild();
@@ -352,11 +357,11 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
       if (isScrolling && visibleRef.current) {
         targetRef.current = activeDir;
       } else if (!visibleRef.current) {
-        targetRef.current = 0;
+        targetRef.current = GRID_WARP_IDLE;
       } else if (hasScrolledRef.current) {
         targetRef.current = activeDir * WARP_RETAIN;
       } else {
-        targetRef.current = 0;
+        targetRef.current = GRID_WARP_IDLE;
       }
 
       currentRef.current += (targetRef.current - currentRef.current) * CURVE_SMOOTH;
@@ -369,14 +374,14 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
         currentRef.current = 0;
       }
 
-      // 모든 격자 점 (x, y) → (x, y + arc(x)·mag) 변형을 라인·셀에 동시 적용.
+      // 모든 격자 점 (x, y) → getWarpedY 변형을 라인·셀에 동시 적용.
       hLinesHandleRef.current?.rebuild();
       vLinesHandleRef.current?.rebuild();
       cellsHandleRef.current?.rebuild();
 
       const deltaToTarget = Math.abs(targetRef.current - currentRef.current);
-      const stillMoving =
-        deltaToTarget > EPSILON || Math.abs(targetRef.current) > EPSILON || isScrolling;
+      // target이 WARP_RETAIN으로 0이 아니어도 current가 수렴하면 루프 종료
+      const stillMoving = deltaToTarget > EPSILON || isScrolling;
 
       if (stillMoving) {
         rafRef.current = requestAnimationFrame(tick);
@@ -408,9 +413,9 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
 
       // 의도 방향만 즉시 갱신 — 실제 굽힘은 tick 에서 gridWarpRef.current.dir 보간.
       if (delta > MODE_SWITCH_DELTA_THRESHOLD) {
-        gridWarpRef.current.intent = -1;
+        gridWarpRef.current.intent = GRID_WARP_SCROLL_DOWN;
       } else if (delta < -MODE_SWITCH_DELTA_THRESHOLD) {
-        gridWarpRef.current.intent = 1;
+        gridWarpRef.current.intent = GRID_WARP_SCROLL_UP;
       }
 
       lastScrollTime = performance.now();
@@ -479,29 +484,27 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
             ref={cellsHandleRef}
             cells={glowCells}
             width={width}
+            height={height}
             currentRef={currentRef}
-            warpAxisRef={gridWarpRef}
           />
         </g>
         <g className={styles.lineLayer}>
-          {/* 가로 라인: arc(x) 기반 상하 휨 */}
+          {/* 가로: 일반/스크롤에 따라 y별 곡률 + arc(x) */}
           <HorizontalLinesLayer
             ref={hLinesHandleRef}
             yStops={yStops}
             width={width}
+            height={height}
             cellSizePx={cellSizePx}
             currentRef={currentRef}
-            warpAxisRef={gridWarpRef}
           />
-          {/* 세로 라인: 같은 기둥 위의 점들이 공통 dy=arc(x_j)·mag 만큼 이동 → 기둥 자체는 직선이지만
-              기둥 배열의 수직 위치가 중앙↓·양끝0 으로 분포해 격자 면 전체가 활처럼 휜 것처럼 보임. */}
           <VerticalLinesLayer
             ref={vLinesHandleRef}
             xStops={xStops}
             height={height}
             width={width}
+            cellSizePx={cellSizePx}
             currentRef={currentRef}
-            warpAxisRef={gridWarpRef}
           />
         </g>
       </svg>

@@ -1,19 +1,48 @@
-.header {
+/* 바깥: fixed + z + 패딩 + border + 스크롤 transform 만 (transform 없을 때 = none) */
+.gnbFrame {
   width: 100%;
   position: fixed;
   left: 0;
   right: 0;
   top: 0;
-  z-index: 20;
+  z-index: var(--z-gnb);
   padding-inline: 8.12rem;
-  background: #ffffff1a;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  background: transparent;
+  transform: none;
+  transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.gnbFrameHidden {
+  transform: translate3d(0, -100%, 0);
+  pointer-events: none;
+}
+
+/* 글라스: 이 노드엔 transform 을 쓰지 않음(부모 gnbFrame 가 스크롤 애니 전담) */
+.glass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(255, 255, 255, 0.01);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  /* backdrop-filter 는 GPU 합성 레이어 위에서만 동작.
-   * translateZ(0) 으로 헤더를 독립 레이어로 승격시켜 블러가 반드시 적용되게 한다.
-   * WebGL 캔버스 등 복잡한 합성 트리에서도 안전하게 동작. */
-  transform: translateZ(0);
-  isolation: isolate;
+  pointer-events: none;
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  background: none;
+  border: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gnbFrame {
+    transition: none;
+  }
 }
 
 .nav {
@@ -70,7 +99,7 @@
 }
 
 @media (max-width: 1200px) {
-  .header {
+  .gnbFrame {
     padding-inline: 2rem;
   }
 
@@ -89,7 +118,7 @@
 }
 
 @media (max-width: 900px) {
-  .header {
+  .gnbFrame {
     padding-inline: 1rem;
   }
 

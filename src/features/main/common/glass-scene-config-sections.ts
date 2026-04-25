@@ -7,7 +7,7 @@ import {
 } from "./glass-scene-config.types";
 
 /**
- * "렌즈 형태(구/납작)"·납짝도 슬라이더는 `GlassSceneConfigPanel` 상단에 별도.
+ * "렌즈 형태(구/납작)"·납작도 슬라이더는 `GlassSceneConfigPanel` 상단에 별도.
  * ballMode / orbScale* 는 여기에 없음.
  */
 export const GLASS_CONFIG_SECTIONS: readonly GlassConfigFieldSection[] = [
@@ -172,7 +172,7 @@ export const GLASS_LENS_FORM_ADVANCED: GlassConfigFieldSection = {
   title: "렌즈 스케일 · 수동 (고급)",
   id: "lensScales",
   fields: [
-    { type: "toggle", key: "lensScalesManual", label: "XY·Z 수동(납짝도 슬라이더와 분리)" },
+    { type: "toggle", key: "lensScalesManual", label: "XY·Z 수동(납작도 슬라이더와 분리)" },
     { type: "slider", key: "orbScaleXY", label: "XY 스케일(수동일 때)", min: 0.3, max: 2, step: 0.01 },
     { type: "slider", key: "orbScaleZ", label: "Z 스케일(수동일 때)", min: 0.2, max: 2, step: 0.01 },
   ],

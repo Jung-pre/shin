@@ -82,7 +82,9 @@
   }
 }
 
-/* --- 퀵 상담 바 --- */
+/* --- 퀵 상담 바 ---
+ * Figma 기준은 넓은 뷰(예: 1920) 한 줄 레이아웃: 클러스터(타이틀+폼) | 가운데 세로 막대 | 링크.
+ * max-width:1200px 구간에서만 세로 스택·막대 숨김. */
 .bar {
   --quick-purple: #812990;
   --quick-purple-hover: #6b1f7a;
@@ -93,9 +95,9 @@
   width: 103.75rem;
   max-width: 100%;
   padding: 1.25rem 2.5rem;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0;
   flex-wrap: nowrap;
   border-radius: 62.5rem;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -108,7 +110,8 @@
   display: flex;
   align-items: center;
   gap: 1rem;
-  flex: 1 1 auto;
+  /* 넓은 화면에서 flex:1 이면 빠른상담 오른쪽에 빈칸 → barBridge 막대가 링크에 붙어 보임 */
+  flex: 0 1 auto;
   min-width: 0;
   flex-wrap: nowrap;
 }
@@ -136,7 +139,8 @@
   flex-wrap: nowrap;
   align-items: center;
   gap: 0.38rem;
-  flex: 1 1 320px;
+  /* 클러스터가 늘어나지 않게: 콘텐츠 너비 기준(구분선을 버튼~전화 사이에서 중앙에 두기) */
+  flex: 0 1 auto;
   min-width: 0;
   justify-content: flex-start;
 }
@@ -211,7 +215,7 @@
 
 .fieldContact {
   width: 9.375rem;
-  text-align: left;
+  text-align: center;
 }
 
 .fieldContact::placeholder {
@@ -347,12 +351,23 @@
   transform: scale(0.98);
 }
 
+/* 클러스터와 nav 사이 “남는 구간” — 여기서만 세로 막대를 수평 중앙 정렬 */
+.barBridge {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+}
+
 .divider {
   width: 1px;
   height: 40px;
   background: rgba(0, 0, 0, 0.08);
   flex-shrink: 0;
-  margin-inline: 0.25rem;
+  align-self: center;
+  margin: 0;
 }
 
 .links {
@@ -361,7 +376,7 @@
   gap: 0;
   flex-wrap: nowrap;
   flex-shrink: 0;
-  margin-left: auto;
+  min-width: 0;
 }
 
 .linkItem {
@@ -385,6 +400,14 @@
   border-left: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+.linkItem:first-child {
+  padding-left: 0;
+}
+
+.linkItem:last-child {
+  padding-right: 0;
+}
+
 .linkItem:hover {
   opacity: 0.85;
 }
@@ -395,9 +418,16 @@
 }
 
 @media (max-width: 1200px) {
+  /* 1200 이하: 스택(1920/넓은 화면의 한 줄 디자인이 아님) */
   .bar {
     border-radius: 28px;
     padding: 18px 24px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .barBridge {
+    display: none;
   }
 
   .divider {
@@ -407,6 +437,11 @@
   .cluster {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .formBlock {
+    flex: 1 1 auto;
+    width: 100%;
   }
 
   .links {
@@ -421,6 +456,14 @@
     justify-content: center;
     padding: 12px 8px;
     font-size: 0.8125rem;
+  }
+
+  .linkItem:first-child {
+    padding-left: 0;
+  }
+
+  .linkItem:last-child {
+    padding-right: 0;
   }
 
   .linkItem + .linkItem {

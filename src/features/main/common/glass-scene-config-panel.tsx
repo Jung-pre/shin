@@ -31,7 +31,7 @@ export interface GlassSceneConfigPanelProps {
   onChange: (next: SceneConfig) => void;
   onReset: () => void;
   /**
-   * full: 기존 전체 패널.
+   * full: 섹션 전체(전송 img 배경 정합 섹션은 제외 — heroImageAlignment 로만).
    * heroImageAlignment: `img_hero` / 전송 buffer DOM 정합(맞춤·배율·포커스·px 보정) 섹션만, 레이어 펼침.
    */
   variant?: GlassSceneConfigPanelVariant;
@@ -50,7 +50,10 @@ export function GlassSceneConfigPanel({
     if (variant === "hdr") {
       return [GLASS_HDR_ENV_SECTION];
     }
-    return [...GLASS_CONFIG_SECTIONS, GLASS_LENS_FORM_ADVANCED];
+    return [
+      ...GLASS_CONFIG_SECTIONS.filter((s) => s.id !== "transmission"),
+      GLASS_LENS_FORM_ADVANCED,
+    ];
   }, [variant]);
   const [bodyOpen, setBodyOpen] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
@@ -287,8 +290,8 @@ export function GlassSceneConfigPanel({
               {!config.ballMode ? (
                 <label className={styles.lensFormFlatness}>
                   <span>
-                    납짝도: {formatSliderValue(config.lensFlatness)}
-                    {config.lensScalesManual ? " (수동 모드: 비활성)" : ""}
+                    납작도: {formatSliderValue(config.lensFlatness)}
+                    {config.lensScalesManual ? " (조절 시 자동 모드)" : ""}
                   </span>
                   <input
                     type="range"
@@ -296,7 +299,6 @@ export function GlassSceneConfigPanel({
                     max={1}
                     step={0.01}
                     value={config.lensFlatness}
-                    disabled={config.lensScalesManual}
                     onChange={(e) => setFlatness(Number(e.target.value))}
                   />
                 </label>

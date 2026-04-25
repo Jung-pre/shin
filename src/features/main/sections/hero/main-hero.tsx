@@ -180,8 +180,10 @@ function QuickBar({ messages, locale }: { messages: HeroQuickBarMessages; locale
         </form>
       </div>
 
-      <div className={styles.divider} role="presentation" />
-
+      {/* 남는 가로 구간 1:1 — 빠른상담(클러스터)과 링크 사이에서 세로 막대만 정중앙 */}
+      <div className={styles.barBridge} aria-hidden>
+        <div className={styles.divider} role="presentation" />
+      </div>
       <nav className={styles.links} aria-label="Quick links">
         <a className={styles.linkItem} href={messages.phoneHref}>
           <IconPhone />

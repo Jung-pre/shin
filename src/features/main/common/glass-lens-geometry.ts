@@ -1,13 +1,16 @@
 import type { SceneConfig } from "./glass-scene-config.types";
 
 /**
- * 납짝도 0(두꺼운 슬리브에 가깝게) ~ 1(얇은 렌즈)
- * t=0.5 → 구 예: xy≈0.5, z≈0.3 (이전 수동 기본과 맞춤)
+ * 납작도 0(두꺼운 렌즈) ~ 1(얇은 렌즈)
+ *
+ * XY는 히어로에서 이미 맞춰 둔 렌즈 지름/간격 체감을 유지하고,
+ * 납작도는 Z 두께만 연속적으로 바꾼다. 이전 방식처럼 XY까지 같이 줄이면
+ * 외부 보정 scale 때문에 렌즈 간격이 튀고, 후반 구간은 Z가 clamp되어 조절감이 약했다.
  */
 export function lensFlatnessToScales(t: number): { xy: number; z: number } {
   const c = Math.min(1, Math.max(0, t));
-  const xy = 0.8 - 0.6 * c;
-  const z = Math.max(0.2, 0.9 - 1.2 * c);
+  const xy = 1.52;
+  const z = 0.08 + 0.82 * Math.pow(1 - c, 1.8);
   return { xy, z };
 }
 
@@ -23,7 +26,7 @@ export function resolveLensScales(
   return lensFlatnessToScales(c.lensFlatness);
 }
 
-/** "납작 렌즈" 버튼 — 구 제외 기본(중간 납짝) */
+/** "납작 렌즈" 버튼 — 구 제외 기본(중간 납작) */
 export function getDefaultFlatLensPatch(): Pick<
   SceneConfig,
   "ballMode" | "lensFlatness" | "lensScalesManual" | "orbScaleXY" | "orbScaleZ"
