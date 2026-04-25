@@ -43,6 +43,11 @@ function useTunerVisible() {
   return false;
 }
 
+/** 아크릴 액자 전용 레이어 팝업 — 전체 회전 슬라이드 튜너를 쓸 때는 숨김 */
+function useAcrylicLayerVisible() {
+  return false;
+}
+
 const ROTATION_SLIDES: readonly (CylinderSlide & {
   lineEn: string;
   lineKo: string;
@@ -128,6 +133,7 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
   // 튜닝 파라미터 (원통 크기/카메라/페이드 등). localStorage 로 영속.
   const { tuning, update, reset } = useRotatingSlideTuning();
   const tunerVisible = useTunerVisible();
+  const acrylicLayerVisible = useAcrylicLayerVisible();
 
   useLayoutEffect(() => {
     const section = sectionRef.current;
@@ -228,7 +234,21 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
             sideDim={tuning.sideDim}
             cylinderTiltDeg={tuning.cylinderTiltDeg}
             cardYStep={tuning.cardYStep}
-            realtimeTuning={tunerVisible}
+            waterFrameStrength={tuning.waterFrameStrength}
+            waterFrameThickness={tuning.waterFrameThickness}
+            waterDistort={tuning.waterDistort}
+            waterChromaticAberration={tuning.waterChromaticAberration}
+            waterFrameShine={tuning.waterFrameShine}
+            waterInnerDistort={tuning.waterInnerDistort}
+            waterTintR={tuning.waterTintR}
+            waterTintG={tuning.waterTintG}
+            waterTintB={tuning.waterTintB}
+            waterTintMix={tuning.waterTintMix}
+            imageBrightness={tuning.imageBrightness}
+            imageContrast={tuning.imageContrast}
+            imageSaturation={tuning.imageSaturation}
+            screenCornerRadius={tuning.screenCornerRadius}
+            realtimeTuning={tunerVisible || acrylicLayerVisible}
           />
         </div>
 
@@ -258,6 +278,15 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
           onChange={update}
           onReset={reset}
           activeIndex={activeIndex}
+        />
+      ) : null}
+      {!tunerVisible && acrylicLayerVisible ? (
+        <RotatingSlideTuningPanel
+          tuning={tuning}
+          onChange={update}
+          onReset={reset}
+          activeIndex={activeIndex}
+          variant="acrylic"
         />
       ) : null}
     </section>

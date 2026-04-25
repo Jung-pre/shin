@@ -142,6 +142,9 @@ export const GLASS_CONFIG_SECTIONS: readonly GlassConfigFieldSection[] = [
       { type: "toggle", key: "envBackground", label: "배경으로 렌더" },
       { type: "slider", key: "envBackgroundBlurriness", label: "배경 흐림", min: 0, max: 1, step: 0.01 },
       { type: "slider", key: "envBackgroundIntensity", label: "배경 밝기", min: 0, max: 3, step: 0.05 },
+      { type: "slider", key: "envRotationXDeg", label: "HDR 회전 X(°)", min: -180, max: 180, step: 1 },
+      { type: "slider", key: "envRotationYDeg", label: "HDR 회전 Y(°)", min: -180, max: 180, step: 1 },
+      { type: "slider", key: "envRotationZDeg", label: "HDR 회전 Z(°)", min: -180, max: 180, step: 1 },
       { type: "toggle", key: "envShowLightformers", label: "Lightformers ON" },
     ],
   },
@@ -161,6 +164,9 @@ export const GLASS_CONFIG_SECTIONS: readonly GlassConfigFieldSection[] = [
 /** img_hero (MeshTransmission) DOM과의 위치·스케일 정합 — 패널에 이 섹션만 쓸 때 */
 export const GLASS_HERO_IMAGE_ALIGNMENT_SECTION: GlassConfigFieldSection =
   GLASS_CONFIG_SECTIONS.find((s) => s.id === "transmission")!;
+
+export const GLASS_HDR_ENV_SECTION: GlassConfigFieldSection =
+  GLASS_CONFIG_SECTIONS.find((s) => s.id === "hdr")!;
 
 export const GLASS_LENS_FORM_ADVANCED: GlassConfigFieldSection = {
   title: "렌즈 스케일 · 수동 (고급)",

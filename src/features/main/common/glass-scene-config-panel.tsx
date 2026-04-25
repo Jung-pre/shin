@@ -11,6 +11,7 @@ import {
 } from "./glass-scene-config.types";
 import {
   GLASS_CONFIG_SECTIONS,
+  GLASS_HDR_ENV_SECTION,
   GLASS_HERO_IMAGE_ALIGNMENT_SECTION,
   GLASS_LENS_FORM_ADVANCED,
 } from "./glass-scene-config-sections";
@@ -23,7 +24,7 @@ const formatSliderValue = (value: number, integer?: boolean) => {
   return value.toFixed(2);
 };
 
-export type GlassSceneConfigPanelVariant = "full" | "heroImageAlignment";
+export type GlassSceneConfigPanelVariant = "full" | "heroImageAlignment" | "hdr";
 
 export interface GlassSceneConfigPanelProps {
   config: SceneConfig;
@@ -45,6 +46,9 @@ export function GlassSceneConfigPanel({
   const sectionList = useMemo((): readonly GlassConfigFieldSection[] => {
     if (variant === "heroImageAlignment") {
       return [GLASS_HERO_IMAGE_ALIGNMENT_SECTION];
+    }
+    if (variant === "hdr") {
+      return [GLASS_HDR_ENV_SECTION];
     }
     return [...GLASS_CONFIG_SECTIONS, GLASS_LENS_FORM_ADVANCED];
   }, [variant]);
@@ -223,6 +227,8 @@ export function GlassSceneConfigPanel({
             ? "옵션 접기"
             : variant === "heroImageAlignment"
               ? "img_hero 정합"
+              : variant === "hdr"
+                ? "HDR 환경"
               : "글래스 옵션"}
         </button>
         {bodyOpen ? (
@@ -244,11 +250,17 @@ export function GlassSceneConfigPanel({
         <div className={styles.configPanelRoot}>
           <div className={styles.configPanelHead}>
             <span className={styles.configPanelTitle}>
-              {variant === "heroImageAlignment" ? "img_hero — 전송 정합" : "글래스 씬"}
+              {variant === "heroImageAlignment"
+                ? "img_hero — 전송 정합"
+                : variant === "hdr"
+                  ? "글래스 HDR 환경"
+                  : "글래스 씬"}
             </span>
             <p className={styles.configPanelHint}>
               {variant === "heroImageAlignment"
                 ? "돔 속 전송 이미지와 DOM의 위치·크기를 맞춥니다. (맞춤, 배율, 포커스, px 보정)"
+                : variant === "hdr"
+                  ? "HDR 프리셋, 강도, 배경 표시, 회전 각도를 조절합니다."
                 : "형태를 고른 뒤 아래에서 재질·조명·인터랙션을 조절합니다."}
             </p>
           </div>

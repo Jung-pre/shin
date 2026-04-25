@@ -42,17 +42,17 @@ export interface RotatingSlideTuning {
   vignetteBgG: number;
   /** 딤에 사용할 배경색 B (0~255) */
   vignetteBgB: number;
-  /** 아크릴 프레임 강도 (0~2) */
+  /** 아크릴 스크린 강도 (0~2) */
   waterFrameStrength: number;
-  /** 아크릴 프레임 두께 (uv 공간) */
+  /** 아크릴 스크린 가장자리 두께 (uv 공간) */
   waterFrameThickness: number;
-  /** 프레임 굴절 왜곡 강도 */
+  /** 가장자리 굴절 왜곡 강도 */
   waterDistort: number;
-  /** 프레임 색수차 강도 */
+  /** 가장자리 색수차 강도 */
   waterChromaticAberration: number;
-  /** 프레임 광택 하이라이트 강도 */
+  /** 스크린 표면 광택 하이라이트 강도 */
   waterFrameShine: number;
-  /** 카드 내부 미세 굴절 강도 */
+  /** 화면 전체 미세 굴절 강도 */
   waterInnerDistort: number;
   /** 아크릴 틴트 R (0~255) */
   waterTintR: number;
@@ -62,20 +62,28 @@ export interface RotatingSlideTuning {
   waterTintB: number;
   /** 아크릴 틴트 혼합 강도 (0~1) */
   waterTintMix: number;
+  /** 이미지 밝기 보정 (1 = 원본) */
+  imageBrightness: number;
+  /** 이미지 대비 보정 (1 = 원본) */
+  imageContrast: number;
+  /** 이미지 채도 보정 (1 = 원본) */
+  imageSaturation: number;
+  /** 이미지/아크릴 공통 코너 라운드 (uv 공간) */
+  screenCornerRadius: number;
 }
 
 export const DEFAULT_TUNING: RotatingSlideTuning = {
-  spacingFactor: 0.85,
-  radius: 2,
+  spacingFactor: 0.8,
+  radius: 2.7,
   cardWidth: 1.9,
   cardHeight: 1.13,
-  bendAmount: 1,
-  cameraZ: 5.2,
-  fov: 32,
+  bendAmount: 0.5,
+  cameraZ: 7,
+  fov: 24,
   fadeCutoffDeg: 95,
   sideDim: 0,
   cylinderTiltDeg: 0,
-  cardYStep: -0.96,
+  cardYStep: -0.9,
   /** 캔버스 edge mask(%) — 과하면 중앙만 슬라이드가 보이고 가장자리는 뒤 배경(밝을수록 하얗게) */
   vignetteWidth: 29,
   vignetteHeight: 25.5,
@@ -83,19 +91,23 @@ export const DEFAULT_TUNING: RotatingSlideTuning = {
   vignetteBgR: 255,
   vignetteBgG: 255,
   vignetteBgB: 255,
-  waterFrameStrength: 1.7,
-  waterFrameThickness: 0.24,
-  waterDistort: 0.014,
-  waterChromaticAberration: 0.003,
-  waterFrameShine: 1.8,
-  waterInnerDistort: 0.004,
-  waterTintR: 236,
-  waterTintG: 244,
+  waterFrameStrength: 1.35,
+  waterFrameThickness: 0.14,
+  waterDistort: 0.006,
+  waterChromaticAberration: 0,
+  waterFrameShine: 0.85,
+  waterInnerDistort: 0.0015,
+  waterTintR: 245,
+  waterTintG: 250,
   waterTintB: 255,
-  waterTintMix: 0.28,
+  waterTintMix: 0.1,
+  imageBrightness: 0.88,
+  imageContrast: 1.06,
+  imageSaturation: 1.22,
+  screenCornerRadius: 0.196,
 };
 
-const STORAGE_KEY = "rotating-slide-tuning-v5";
+const STORAGE_KEY = "rotating-slide-tuning-v15";
 
 /**
  * localStorage 에서 저장값 로드. 스키마 mismatch · parse 에러는 기본값으로 fallback.
@@ -199,6 +211,10 @@ const RANGES: Record<keyof RotatingSlideTuning, Range> = {
   waterTintG:                  { min: 0,     max: 255,    step: 1,     decimals: 0 },
   waterTintB:                  { min: 0,     max: 255,    step: 1,     decimals: 0 },
   waterTintMix:                { min: 0,     max: 1,      step: 0.01,  decimals: 2 },
+  imageBrightness:             { min: 0.5,   max: 1.5,    step: 0.01,  decimals: 2 },
+  imageContrast:               { min: 0.5,   max: 1.5,    step: 0.01,  decimals: 2 },
+  imageSaturation:             { min: 0,     max: 1.5,    step: 0.01,  decimals: 2 },
+  screenCornerRadius:          { min: 0,     max: 0.24,   step: 0.002, decimals: 3 },
 };
 
 const LABELS: Record<keyof RotatingSlideTuning, string> = {
@@ -219,16 +235,20 @@ const LABELS: Record<keyof RotatingSlideTuning, string> = {
   vignetteBgR:     "배경색 R",
   vignetteBgG:     "배경색 G",
   vignetteBgB:     "배경색 B",
-  waterFrameStrength: "아크릴 강도",
-  waterFrameThickness: "아크릴 두께",
-  waterDistort: "굴절 왜곡",
-  waterChromaticAberration: "프레임 색수차",
-  waterFrameShine: "글로시 하이라이트",
-  waterInnerDistort: "내부 굴절",
+  waterFrameStrength: "스크린 강도",
+  waterFrameThickness: "가장자리 두께",
+  waterDistort: "가장자리 굴절",
+  waterChromaticAberration: "가장자리 색수차",
+  waterFrameShine: "표면 하이라이트",
+  waterInnerDistort: "전체 굴절",
   waterTintR: "아크릴 틴트 R",
   waterTintG: "아크릴 틴트 G",
   waterTintB: "아크릴 틴트 B",
   waterTintMix: "틴트 혼합",
+  imageBrightness: "이미지 밝기",
+  imageContrast: "이미지 대비",
+  imageSaturation: "이미지 채도",
+  screenCornerRadius: "코너 라운드",
 };
 
 const GROUPS: { title: string; keys: (keyof RotatingSlideTuning)[] }[] = [
@@ -257,6 +277,25 @@ const GROUPS: { title: string; keys: (keyof RotatingSlideTuning)[] }[] = [
       "vignetteBgR", "vignetteBgG", "vignetteBgB",
     ],
   },
+  {
+    title: "아크릴 스크린",
+    keys: [
+      "waterFrameStrength",
+      "waterFrameThickness",
+      "waterDistort",
+      "waterChromaticAberration",
+      "waterFrameShine",
+      "waterInnerDistort",
+      "waterTintR",
+      "waterTintG",
+      "waterTintB",
+      "waterTintMix",
+      "imageBrightness",
+      "imageContrast",
+      "imageSaturation",
+      "screenCornerRadius",
+    ],
+  },
 ];
 
 export interface RotatingSlideTuningPanelProps {
@@ -268,6 +307,7 @@ export interface RotatingSlideTuningPanelProps {
   onReset: () => void;
   /** 현재 activeIndex — 보조 정보로 표시 */
   activeIndex?: number;
+  variant?: "full" | "acrylic";
 }
 
 /**
@@ -281,6 +321,7 @@ export function RotatingSlideTuningPanel({
   onChange,
   onReset,
   activeIndex,
+  variant = "full",
 }: RotatingSlideTuningPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -362,6 +403,9 @@ export function RotatingSlideTuningPanel({
   const style: React.CSSProperties | undefined = position
     ? { top: position.y, left: position.x, right: "auto" }
     : undefined;
+  const groups = variant === "acrylic"
+    ? GROUPS.filter((group) => group.title === "아크릴 스크린")
+    : GROUPS;
 
   return (
     <div className={styles.panel} style={style}>
@@ -374,7 +418,7 @@ export function RotatingSlideTuningPanel({
         onPointerCancel={onPointerUp}
       >
         <div className={styles.title}>
-          Rotating Slide Tuner
+          {variant === "acrylic" ? "Acrylic Screen Layer" : "Rotating Slide Tuner"}
           {typeof activeIndex === "number" ? ` · active ${activeIndex}` : null}
         </div>
         <div className={styles.actions}>
@@ -390,28 +434,31 @@ export function RotatingSlideTuningPanel({
       </div>
 
       <div className={styles.body} data-collapsed={collapsed ? "true" : "false"}>
-        {GROUPS.map((group) => {
+        {groups.map((group) => {
           const isColorGroup = group.keys.includes("vignetteBgR");
+          const isAcrylicTintGroup = group.keys.includes("waterTintR");
           return (
             <div key={group.title} className={styles.group}>
               <div className={styles.groupTitle}>{group.title}</div>
 
               {/* RGB 그룹에만 색상 스와치 표시 */}
-              {isColorGroup ? (
+              {isColorGroup || isAcrylicTintGroup ? (
                 <div className={styles.colorSwatchRow}>
                   <div
                     className={styles.colorSwatch}
                     style={{
-                      background: `rgb(${tuning.vignetteBgR},${tuning.vignetteBgG},${tuning.vignetteBgB})`,
-                      opacity: tuning.vignetteOpacity,
+                      background: isAcrylicTintGroup
+                        ? `rgb(${tuning.waterTintR},${tuning.waterTintG},${tuning.waterTintB})`
+                        : `rgb(${tuning.vignetteBgR},${tuning.vignetteBgG},${tuning.vignetteBgB})`,
+                      opacity: isAcrylicTintGroup ? tuning.waterTintMix : tuning.vignetteOpacity,
                     }}
                   />
                   <span className={styles.colorHex}>
-                    #{Math.round(tuning.vignetteBgR).toString(16).padStart(2, "0")}
-                    {Math.round(tuning.vignetteBgG).toString(16).padStart(2, "0")}
-                    {Math.round(tuning.vignetteBgB).toString(16).padStart(2, "0")}
+                    #{Math.round(isAcrylicTintGroup ? tuning.waterTintR : tuning.vignetteBgR).toString(16).padStart(2, "0")}
+                    {Math.round(isAcrylicTintGroup ? tuning.waterTintG : tuning.vignetteBgG).toString(16).padStart(2, "0")}
+                    {Math.round(isAcrylicTintGroup ? tuning.waterTintB : tuning.vignetteBgB).toString(16).padStart(2, "0")}
                     {" "}/{" "}
-                    {Math.round(tuning.vignetteOpacity * 100)}%
+                    {Math.round((isAcrylicTintGroup ? tuning.waterTintMix : tuning.vignetteOpacity) * 100)}%
                   </span>
                 </div>
               ) : null}

@@ -70,6 +70,9 @@ const ORB_POSITION: Vector3Tuple = [0, 0, 0];
 /** 커스텀 HDR 파일 경로 매핑 — preset 값이 여기 있으면 drei preset 대신 파일을 직접 로드 */
 const CUSTOM_HDR_FILES: Partial<Record<EnvironmentPreset, string>> = {
   citrus_orchard: "/main/citrus_orchard_road_puresky_1k.hdr",
+  suburban_garden: "/main/suburban_garden_1k.hdr",
+  winter_evening: "/main/winter_evening_1k.hdr",
+  blaubeuren_church_square: "/main/blaubeuren_church_square_1k.hdr",
   passendorf_snow: "/main/passendorf_snow_1k.hdr",
 };
 
@@ -353,6 +356,11 @@ const SceneEnvironment = ({ config }: SceneEnvironmentProps) => {
   const envProps = customFile
     ? { files: customFile }
     : { preset: config.envPreset as Exclude<EnvironmentPreset, keyof typeof CUSTOM_HDR_FILES> };
+  const envRotation: [number, number, number] = [
+    (config.envRotationXDeg * Math.PI) / 180,
+    (config.envRotationYDeg * Math.PI) / 180,
+    (config.envRotationZDeg * Math.PI) / 180,
+  ];
 
   return (
     <Environment
@@ -363,6 +371,8 @@ const SceneEnvironment = ({ config }: SceneEnvironmentProps) => {
       background={config.envBackground}
       backgroundBlurriness={config.envBackgroundBlurriness}
       backgroundIntensity={config.envBackgroundIntensity}
+      environmentRotation={envRotation}
+      backgroundRotation={envRotation}
     >
       {config.envShowLightformers ? (
         <group rotation={[-Math.PI / 3, 0, 0]}>
@@ -1016,6 +1026,7 @@ const HERO_INTRO_PAUSE_SEC = 0;
 /** 중앙 → 각자 자리 */
 const HERO_INTRO_SEPARATE_SEC = 1.0;
 const HERO_INTRO_SEPARATE_EASE = "power2.inOut" as const;
+let hasHeroGlassIntroPlayedOnce = false;
 
 export const GlassOrbsScene = ({
   sourceImageUrl = DEFAULT_SOURCE_IMAGE,
@@ -1026,7 +1037,7 @@ export const GlassOrbsScene = ({
   onFirstFrameReady,
 }: GlassOrbsSceneProps) => {
   const [config, setConfig] = useState<SceneConfig>(DEFAULT_CONFIG);
-  const heroIntroCompletedRef = useRef(false);
+  const heroIntroCompletedRef = useRef(hasHeroGlassIntroPlayedOnce);
   const [heroCanvasStable, setHeroCanvasStable] = useState(false);
   const isHeroSource = sourceImageUrl.includes("img_hero");
 
@@ -1097,18 +1108,34 @@ export const GlassOrbsScene = ({
 
   /** 히어로: 첫 페인트부터 인트로 시작 자세 고정 (깜빡임 방지) */
   useLayoutEffect(() => {
-    if (!isHeroSource || heroIntroCompletedRef.current) return;
+    if (!isHeroSource) return;
     const m = introMotionRef.current;
+    if (hasHeroGlassIntroPlayedOnce || heroIntroCompletedRef.current) {
+      heroIntroCompletedRef.current = true;
+      m.active = false;
+      m.orb1X = config.orb1OffsetX;
+      m.orb2X = config.orb2OffsetX;
+      m.orb2Opacity = 1;
+      requestAnimationFrame(() => invalidateCallback());
+      return;
+    }
     m.active = true;
     m.orb1X = midX - HERO_INTRO_START_DISTANCE;
     m.orb2X = midX + HERO_INTRO_START_DISTANCE;
     m.orb2Opacity = 0;
     requestAnimationFrame(() => invalidateCallback());
-  }, [invalidateCallback, isHeroSource, midX]);
+  }, [config.orb1OffsetX, config.orb2OffsetX, invalidateCallback, isHeroSource, midX]);
 
   /** 모든 준비 완료 → GSAP 인트로 실행 */
   useEffect(() => {
-    if (!isHeroSource || !isSourceReady || !envSettled || !heroCanvasStable || heroIntroCompletedRef.current) {
+    if (
+      !isHeroSource ||
+      !isSourceReady ||
+      !envSettled ||
+      !heroCanvasStable ||
+      hasHeroGlassIntroPlayedOnce ||
+      heroIntroCompletedRef.current
+    ) {
       return;
     }
     const m = introMotionRef.current;
@@ -1116,7 +1143,7 @@ export const GlassOrbsScene = ({
     let cancelled = false;
 
     const rafId = requestAnimationFrame(() => {
-      if (cancelled || heroIntroCompletedRef.current) return;
+      if (cancelled || hasHeroGlassIntroPlayedOnce || heroIntroCompletedRef.current) return;
 
       m.active = true;
       m.orb1X = midX - HERO_INTRO_START_DISTANCE;
@@ -1134,6 +1161,7 @@ export const GlassOrbsScene = ({
         .to(m, { orb2X: config.orb2OffsetX, duration: HERO_INTRO_SEPARATE_SEC, ease: HERO_INTRO_SEPARATE_EASE }, "separate")
         .eventCallback("onComplete", () => {
           heroIntroCompletedRef.current = true;
+          hasHeroGlassIntroPlayedOnce = true;
           m.active = false;
           m.orb1X = config.orb1OffsetX;
           m.orb2X = config.orb2OffsetX;
@@ -1146,11 +1174,11 @@ export const GlassOrbsScene = ({
       cancelled = true;
       cancelAnimationFrame(rafId);
       tl?.kill();
-      if (!heroIntroCompletedRef.current) {
-        m.active = true;
-        m.orb1X = midX - HERO_INTRO_START_DISTANCE;
-        m.orb2X = midX + HERO_INTRO_START_DISTANCE;
-        m.orb2Opacity = 0;
+      if (hasHeroGlassIntroPlayedOnce || heroIntroCompletedRef.current) {
+        m.active = false;
+        m.orb1X = config.orb1OffsetX;
+        m.orb2X = config.orb2OffsetX;
+        m.orb2Opacity = 1;
         invalidateCallback();
       }
     };

@@ -8,6 +8,9 @@ export type RimPreset = (typeof RIM_PRESETS)[number];
 
 export const ENVIRONMENT_PRESETS = [
   "citrus_orchard",
+  "suburban_garden",
+  "winter_evening",
+  "blaubeuren_church_square",
   "studio",
   "city",
   "dawn",
@@ -71,6 +74,9 @@ export interface SceneConfig {
   envBackground: boolean;
   envBackgroundBlurriness: number;
   envBackgroundIntensity: number;
+  envRotationXDeg: number;
+  envRotationYDeg: number;
+  envRotationZDeg: number;
   envShowLightformers: boolean;
 
   rimEnabled: boolean;
@@ -137,11 +143,14 @@ export const DEFAULT_CONFIG: SceneConfig = {
   resolution: 256,
 
   envEnabled: true,
-  envPreset: "night",
-  envIntensity: 4,
+  envPreset: "sunset",
+  envIntensity: 5,
   envBackground: false,
   envBackgroundBlurriness: 0,
   envBackgroundIntensity: 0,
+  envRotationXDeg: -74,
+  envRotationYDeg: -28,
+  envRotationZDeg: -137,
   envShowLightformers: true,
 
   rimEnabled: false,
