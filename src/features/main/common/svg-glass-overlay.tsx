@@ -4,6 +4,7 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -394,6 +395,16 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
   const wasBelowTriggerRef = useRef(false);
   const reverseHandoffPendingRef = useRef(false);
 
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const glassTarget = glassLayerRef?.current ?? null;
+    if (!glassTarget) return;
+
+    const vh = window.innerHeight || 1;
+    const isAtTop = window.scrollY < vh * crossfade.triggerVh;
+    glassTarget.style.zIndex = isAtTop ? "3" : "1";
+  }, [crossfade.triggerVh, glassLayerRef]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -486,7 +497,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
           reverseHandoffPendingRef.current = false;
           wasBelowTriggerRef.current = false;
         }
-        return { glassOpacity, svgOpacity, isAtTop };
+        return { glassOpacity, svgOpacity, isAtTop, keepGlassAbove: true };
       }
 
       const isDesktop =
@@ -499,6 +510,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
           glassOpacity: isGlassReady ? 1 : 0,
           svgOpacity: 0,
           isAtTop,
+          keepGlassAbove: false,
         };
       }
 
@@ -510,6 +522,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
           glassOpacity: 0,
           svgOpacity: 0,
           isAtTop,
+          keepGlassAbove: false,
         };
       }
 
@@ -523,6 +536,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
           glassOpacity: 0,
           svgOpacity: 0,
           isAtTop,
+          keepGlassAbove: false,
         };
       }
       const { glassOpacity, svgOpacity } = computeBottomOpacities(
@@ -531,13 +545,13 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         vh,
         cfg,
       );
-      return { glassOpacity, svgOpacity, isAtTop };
+      return { glassOpacity, svgOpacity, isAtTop, keepGlassAbove: false };
     };
 
     const apply = () => {
       const computed = compute();
       if (!computed) return; // 첫 로드 미준비 구간 — 건드리지 않음
-      const { glassOpacity, svgOpacity, isAtTop } = computed;
+      const { glassOpacity, svgOpacity, keepGlassAbove } = computed;
       const svgTarget = overlayRef.current;
       const glassTarget = glassLayerRef?.current ?? null;
 
@@ -553,11 +567,9 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       }
       // z-index 동적 토글:
       //   isAtTop(히어로 구간) → z:3 으로 타이틀 위 → 3D 굴절 효과 유지
-      //   히어로 벗어남       → z:1 로 foreground(z:2) 뒤 → 머신 섹션 위에서 pointer 간섭 없음
-      //   (pointer-events:none 이 이미 걸려있지만, 내부 패널/자식 중 auto 인 것들이
-      //    예기치 않게 hit test 에 걸리는 케이스까지 z-index 로 원천 차단)
+      //   히어로 벗어남       → z:1 로 foreground(z:2) 뒤 → 회전슬라이드까지 존재만 유지
       if (glassTarget) {
-        const nextZ = isAtTop ? "3" : "1";
+        const nextZ = keepGlassAbove ? "3" : "1";
         if (nextZ !== lastGlassZ) {
           glassTarget.style.zIndex = nextZ;
           lastGlassZ = nextZ;
@@ -669,7 +681,8 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       if (isTopGlassHoldZone) {
         if (glassTarget) {
           glassTarget.style.opacity = "0";
-          glassTarget.style.zIndex = "1";
+          // 히어로(isAtTop) — 홀드 존이어도 타이틀 위에 3, 히어로 이후~회전슬라이드 끝까지는 1
+          glassTarget.style.zIndex = isAtTop ? "3" : "1";
         }
         if (svgTarget) {
           svgTarget.style.visibility = "visible";
@@ -731,7 +744,8 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       if (glassTarget) {
         glassTarget.style.visibility = "visible";
         glassTarget.style.opacity = "1";
-        glassTarget.style.zIndex = "1";
+        // 스크롤 루프 `compute` 와 동일: 히어로 안만 z:3, 그 아래(홀드 존)는 z:1
+        glassTarget.style.zIndex = isAtTop ? "3" : "1";
       }
       if (svgTarget) {
         svgTarget.style.opacity = "0";
