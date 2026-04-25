@@ -91,7 +91,7 @@ export function NewsSection({ messages }: NewsSectionProps) {
         <div ref={headerRef} className={styles.header}>
           <p className={styles.eyebrow} lang="en">
             <img
-              src="/main/img_main_news_logo.png"
+              src="/main/img_main_news_logo.webp"
               alt=""
               className={styles.eyebrowDot}
               aria-hidden="true"

@@ -328,6 +328,10 @@
   animation: reviewBandB 102s linear infinite;
 }
 
+.bandTicker[data-paused="true"] .bandTrack {
+  animation-play-state: paused;
+}
+
 @keyframes reviewBandA {
   from {
     transform: translateX(0);

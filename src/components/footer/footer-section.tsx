@@ -24,11 +24,11 @@ export function FooterSection({ messages, className }: FooterSectionProps) {
   const mapPanelRef = useRef<HTMLDivElement>(null);
   const titleLines = messages.title.split("\n");
   const snsIcons = [
-    "/common/img_footer_sns01.png",
-    "/common/img_footer_sns02.png",
-    "/common/img_footer_sns03.png",
-    "/common/img_footer_sns04.png",
-    "/common/img_footer_sns05.png",
+    "/common/img_footer_sns01.webp",
+    "/common/img_footer_sns02.webp",
+    "/common/img_footer_sns03.webp",
+    "/common/img_footer_sns04.webp",
+    "/common/img_footer_sns05.webp",
   ];
 
   useGSAP(
@@ -147,7 +147,7 @@ export function FooterSection({ messages, className }: FooterSectionProps) {
             <div ref={bottomBrandRef} className={styles.bottomBrand}>
               <div className={styles.bottomBrandTop}>
                 <img
-                  src="/common/img_footer_logo.png"
+                  src="/common/img_footer_logo.webp"
                   alt={messages.brandName}
                   className={styles.brandLogo}
                   loading="lazy"

@@ -95,8 +95,7 @@ export interface MainPageProps {
  *   - 페이지 초기 마운트 이후 언마운트하지 않고 상시 유지.
  *   - `frameloop="demand"` + MouseTilt/Transmission 훅의 "보이지 않으면 invalidate/redraw 스킵"
  *     가드로 idle 구간 GPU/CPU ≈ 0. 재마운트 스파이크(WebGL init + HDR fetch + CSG build) 제거
- *     → 상/하단 크로스페이드 타이밍 밀림 문제 해결.
- *   - 상단/하단 zone 은 더 이상 mount toggle 이 아니라 "variant (img_hero | img_frame) 토글" 용.
+ *     → 히어로 글래스 타이밍 밀림 문제 해결.
  *
  * Mobile (< MIN_WIDTH_PX):
  *   - 히어로 구간만 마운트, 벗어나면 언마운트 (기존 전략 유지).
@@ -106,16 +105,9 @@ export interface MainPageProps {
  * 상단(히어로) zone — 모바일 마운트 토글 + 공통 variant 토글:
  *   - REMOUNT_SCROLL_VH (0.18) 위로 올라오면 (모바일) 마운트 / variant=top
  *   - UNMOUNT_SCROLL_VH (0.55) 아래로 내려가면 (모바일) 언마운트
- *
- * 하단(피날레) zone — youtubeBottomRef sentinel 기준, desktop variant 토글 용:
- *   - BOTTOM_ZONE_ENTER_VH (3.0) — sentinel.top < vh * 3.0 이면 variant=bottom
- *                                  (img_frame.webp 프리로드 시간 확보)
- *   - BOTTOM_ZONE_EXIT_VH  (3.3) — sentinel.top > vh * 3.3 이면 상단 우선권 회수
  */
 const GLASS_ORBS_UNMOUNT_SCROLL_VH = 0.55;
 const GLASS_ORBS_REMOUNT_SCROLL_VH = 0.18;
-const GLASS_ORBS_BOTTOM_ZONE_ENTER_VH = 3.0;
-const GLASS_ORBS_BOTTOM_ZONE_EXIT_VH = 3.3;
 /** 데스크탑 상시 마운트 기준 뷰포트 폭. 이 이하는 모바일 언마운트 전략. */
 const GLASS_ORBS_DESKTOP_MIN_WIDTH_PX = 768;
 
@@ -171,14 +163,6 @@ export const MainPage = ({
   const [isGridVisible, setIsGridVisible] = useState(true);
   const [isGlassOrbsMounted, setIsGlassOrbsMounted] = useState(GLASS_ORBS_ENABLED);
   /**
-   * 현재 마운트된 글래스가 어느 존을 위한 것인지.
-   *   - "top" = 히어로 (굴절 이미지 on) / "bottom" = 페이지 피날레 (투명 유리 모드)
-   * 한 쌍의 GlassOrbsScene 인스턴스를 두 존에서 공유하되 variant 에 따라 굴절 이미지만 토글한다.
-   */
-  const [glassOrbsVariant, setGlassOrbsVariant] = useState<"top" | "bottom">(
-    "top",
-  );
-  /**
    * 기본 진입부터 "3D 준비 전엔 SVG 우선" 정책을 사용한다.
    * (webp 텍스처/첫 프레임 준비가 끝나면 onFirstFrameReady 에서 true 로 전환)
    */
@@ -205,15 +189,20 @@ export const MainPage = ({
 
     let rafId: number | null = null;
     let scheduled = false;
+    let boundaryAbsY = Number.POSITIVE_INFINITY;
+
+    const refreshBoundaryAbsY = () => {
+      const rect = el.getBoundingClientRect();
+      boundaryAbsY = rect.top + window.scrollY;
+    };
 
     const evaluate = () => {
       scheduled = false;
       rafId = null;
-      const rect = el.getBoundingClientRect();
       // sentinel 이 뷰포트 top 아래에 있으면 그 위쪽(= 투명 섹션들) 이 현재
       // 뷰포트에 노출된 상태 → 그리드가 보임. top <= 0 이면 AcademicPublications
       // 가 뷰포트를 모두 덮고 있는 상태 → 그리드 가려짐.
-      const visible = rect.top > 0;
+      const visible = boundaryAbsY - window.scrollY > 0;
       setIsGridVisible((prev) => (prev === visible ? prev : visible));
     };
 
@@ -223,12 +212,26 @@ export const MainPage = ({
       rafId = window.requestAnimationFrame(evaluate);
     };
 
+    refreshBoundaryAbsY();
     evaluate();
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && mainRef.current) {
+      ro = new ResizeObserver(() => {
+        refreshBoundaryAbsY();
+        schedule();
+      });
+      ro.observe(mainRef.current);
+    }
+    const handleResize = () => {
+      refreshBoundaryAbsY();
+      schedule();
+    };
     window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
+    window.addEventListener("resize", handleResize);
     return () => {
       window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("resize", handleResize);
+      ro?.disconnect();
       if (rafId !== null) window.cancelAnimationFrame(rafId);
     };
   }, []);
@@ -307,21 +310,6 @@ export const MainPage = ({
     let rafId: number | null = null;
     let scheduled = false;
 
-    // sentinel 의 "문서 기준 절대 Y 좌표" 캐시 — getBoundingClientRect 는 layout 을
-    // 강제하므로 매 프레임마다 호출하지 않고, 초기 1회 + resize + ResizeObserver 이벤트
-    // 로만 갱신한다. 이후엔 `sentinelAbsY - scrollY` 계산으로 viewport-relative top 을
-    // 유추할 수 있어 per-frame layout read 를 완전히 제거할 수 있다.
-    let sentinelAbsY = Number.POSITIVE_INFINITY;
-    const refreshSentinelAbsY = () => {
-      const el = youtubeBottomRef.current;
-      if (!el) {
-        sentinelAbsY = Number.POSITIVE_INFINITY;
-        return;
-      }
-      const rect = el.getBoundingClientRect();
-      sentinelAbsY = rect.top + window.scrollY;
-    };
-
     /**
      * 회전 슬라이드 섹션의 문서 기준 [top, bottom] (레이아웃 시에만 갱신).
      * 글래스 Y 여정(p): **스크롤 0(히어로 맨 위)에서 0** → **섹션 하단이 뷰하단에 닿을 때 1** (구간=0~(bottom-vh))
@@ -341,17 +329,24 @@ export const MainPage = ({
       rotatingSectionBottomAbsY = rotatingSectionTopAbsY + el.offsetHeight;
     };
 
+    let heroBottomAbsY: number | null = null;
     const refreshHeroTextureLock = () => {
       const h = heroSectionRef.current;
       if (!h) {
+        heroBottomAbsY = null;
         glassTextureLockScrollYRef.current = null;
         return;
       }
       // `offsetTop+offsetHeight` 는 offsetParent 기준이라 문서 scrollY 와 엇갈릴 수 있음.
-      // 불변: scrollY + getBoundingClientRect().bottom = 히어로 하단이 뷰상단에 닿는 scrollY
+      // 불변: scrollY + getBoundingClientRect().bottom = 히어로 하단이 뷰상단에 닿는 scrollY.
+      // 레이아웃 read 는 resize/RO 때만 수행하고, scroll frame 에서는 캐시만 쓴다.
       const r = h.getBoundingClientRect();
       const sy = window.scrollY;
-      glassTextureLockScrollYRef.current = sy + r.bottom;
+      heroBottomAbsY = sy + r.bottom;
+      glassTextureLockScrollYRef.current = heroBottomAbsY;
+    };
+    const applyHeroTextureLock = () => {
+      glassTextureLockScrollYRef.current = heroBottomAbsY;
     };
 
     const runFrame = () => {
@@ -361,7 +356,7 @@ export const MainPage = ({
       if (GLASS_ORBS_ENABLED) {
         const vh = window.innerHeight || 1;
         const y = window.scrollY;
-        refreshHeroTextureLock();
+        applyHeroTextureLock();
 
         // p: 히어로를 내려오는 순간(스크롤 0)부터 진행, 끝은 회전 슬라이드 끝 = endScrollY
         if (rotatingSectionBottomAbsY > rotatingSectionTopAbsY) {
@@ -383,19 +378,12 @@ export const MainPage = ({
 
         const isDesktop =
           window.innerWidth >= GLASS_ORBS_DESKTOP_MIN_WIDTH_PX;
-        // per-frame getBoundingClientRect 대신 캐시된 절대 좌표에서 역산.
-        const sentinelTop = sentinelAbsY - y;
-        const bottomEnterPx = vh * GLASS_ORBS_BOTTOM_ZONE_ENTER_VH;
-        const bottomExitPx = vh * GLASS_ORBS_BOTTOM_ZONE_EXIT_VH;
-
         const inTopZone = y < remountAt;
-        const inBottomZone = isDesktop && sentinelTop < bottomEnterPx;
         const farFromTop = y > unmountAt;
-        const farFromBottom = !isDesktop || sentinelTop > bottomExitPx;
 
         setIsGlassOrbsMounted((prev) => {
           // 데스크탑: 첫 마운트 이후엔 상시 유지 (언마운트 스파이크 제거).
-          //   variant 토글만 수행 → idle 구간은 frameloop="demand" + 가드로 0 비용.
+          //   중간/하단 구간은 SvgGlassOverlay 가 opacity 를 내려 idle 비용을 막는다.
           if (isDesktop) {
             if (!prev) {
               // 초기 또는 리사이즈로 desktop 진입 — 바로 마운트.
@@ -405,32 +393,17 @@ export const MainPage = ({
           }
 
           // 모바일: 기존 "히어로 구간 한정" 전략 유지.
-          if (prev && farFromTop && farFromBottom) {
+          if (prev && farFromTop) {
             hasGlassOrbsUnmountedRef.current = true;
             return false;
           }
-          if (!prev && (inTopZone || inBottomZone)) {
+          if (!prev && inTopZone) {
             if (hasGlassOrbsUnmountedRef.current) {
               needReadyResetOnRemountRef.current = true;
             }
             return true;
           }
           return prev;
-        });
-
-        // Variant 토글 — "bottom zone 안이면 bottom, 그 외엔 top" 단순 이분법.
-        //   · 기존: inTopZone (y < 0.18vh) 일 때만 top 복귀 → 역방향 스크롤에서
-        //     글래스가 보이기 직전(가시 크로스페이드 한복판)에 이미지 스왑이 겹쳐
-        //     첫 프레임이 콜드 스타트 + 새 텍스처 로드 스파이크로 "SVG→Glass" 전환 시
-        //     순간적인 렉이 발생.
-        //   · 새 로직: sentinel.top > exitPx 면 즉시 top → 히스테리시스 0.3vh 여유 유지.
-        //     결과적으로 glass 가 실제로 보이기 훨씬 전(≈3vh 떨어진 지점)에 variant 가
-        //     교체돼 이미지 재로드·redraw·invalidate 가 모두 "숨은 구간"에서 완료.
-        //
-        //   · 모바일(!isDesktop) 은 inBottomZone 이 항상 false 이므로 자동으로 top 만 사용.
-        setGlassOrbsVariant((prev) => {
-          const next = inBottomZone ? "bottom" : "top";
-          return prev === next ? prev : next;
         });
       }
     };
@@ -441,12 +414,11 @@ export const MainPage = ({
       rafId = window.requestAnimationFrame(runFrame);
     };
 
-    // 초기 sentinel 좌표 측정 — DOM 이 아직 없으면 다음 프레임에 재시도.
+    // 초기 섹션 좌표 측정 — DOM 이 아직 없으면 다음 프레임에 재시도.
     const initialSentinelRead = () => {
-      refreshSentinelAbsY();
       refreshRotatingSectionBounds();
       refreshHeroTextureLock();
-      if (!Number.isFinite(sentinelAbsY)) {
+      if (rotatingSectionBottomAbsY <= rotatingSectionTopAbsY) {
         requestAnimationFrame(initialSentinelRead);
       }
     };
@@ -457,7 +429,6 @@ export const MainPage = ({
     let ro: ResizeObserver | null = null;
     if (typeof ResizeObserver !== "undefined" && mainRef.current) {
       ro = new ResizeObserver(() => {
-        refreshSentinelAbsY();
         refreshRotatingSectionBounds();
         refreshHeroTextureLock();
       });
@@ -465,7 +436,6 @@ export const MainPage = ({
     }
 
     const handleResize = () => {
-      refreshSentinelAbsY();
       refreshRotatingSectionBounds();
       refreshHeroTextureLock();
       schedule();
@@ -514,19 +484,11 @@ export const MainPage = ({
                   />
                 ) : (
                   <GlassOrbsScene
-                    sourceImageUrl={
-                      glassOrbsVariant === "bottom"
-                        ? "/main/img_frame.webp"
-                        : "/main/img_hero.webp"
-                    }
-                    targetRef={
-                      glassOrbsVariant === "bottom" ? undefined : heroTitleRef
-                    }
+                    sourceImageUrl="/main/img_hero.webp"
+                    targetRef={heroTitleRef}
                     journeyProgressRef={glassJourneyProgressRef}
                     mouseTiltHoldDocYRef={glassMouseTiltHoldDocYRef}
-                    lockTextureAtScrollYRef={
-                      glassOrbsVariant === "top" ? glassTextureLockScrollYRef : undefined
-                    }
+                    lockTextureAtScrollYRef={glassTextureLockScrollYRef}
                     onFirstFrameReady={() => {
                       setIsGlassOrbsReady(true);
                       setIsGlassRemount(false);
@@ -545,6 +507,7 @@ export const MainPage = ({
             isRemount={isGlassRemount}
             onGlassReady={() => setIsGlassRemount(false)}
             bottomGlassAnchorRef={youtubeBottomRef}
+            topGlassHoldDocYRef={glassMouseTiltHoldDocYRef}
           />
         </>
       ) : null}
@@ -567,7 +530,7 @@ export const MainPage = ({
         <BlogSection messages={blogSection} />
         <NewsSection messages={newsSection} />
         <YoutubeSection messages={youtubeSection} />
-        {/* 하단 글래스 페이드인 anchor — 유튜브 섹션 바로 뒤에 0px sentinel */}
+        {/* 하단 SVG footer 페이드인 anchor — 유튜브 섹션 바로 뒤에 0px sentinel */}
         <div ref={youtubeBottomRef} aria-hidden style={{ width: "100%", height: 0 }} />
         <YoutubeTransitionSection />
       </div>

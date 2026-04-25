@@ -67,11 +67,6 @@ export interface UseImageTransmissionTextureOptions {
   centerOffsetYPx?: number;
 }
 
-const getPngFallbackSrc = (url: string): string | null => {
-  const fallback = url.replace(/\.webp(?=($|[?#]))/i, ".png");
-  return fallback === url ? null : fallback;
-};
-
 /**
  * 렌즈(MeshTransmissionMaterial) 의 `buffer` uniform 에 꽂을 이미지 텍스처 훅.
  *
@@ -266,7 +261,6 @@ export const useImageTransmissionTexture = (
       return;
     }
     let alive = true;
-    let didTryFallback = false;
 
     const img = new Image();
     img.fetchPriority = "high";
@@ -292,11 +286,7 @@ export const useImageTransmissionTexture = (
     img.addEventListener(
       "error",
       () => {
-        if (didTryFallback) return;
-        const fallbackSrc = getPngFallbackSrc(src);
-        if (!fallbackSrc) return;
-        didTryFallback = true;
-        img.src = fallbackSrc;
+        imgReadyRef.current = false;
       },
     );
     img.src = src;
@@ -331,12 +321,17 @@ export const useImageTransmissionTexture = (
     if (typeof window === "undefined") return;
 
     let raf = 0;
+    let lockedHiddenRedrawKey: string | null = null;
     const scheduleRaf = () => {
       if (raf) return;
       raf = window.requestAnimationFrame(() => {
         raf = 0;
         redraw();
       });
+    };
+    const scheduleFreshRaf = () => {
+      lockedHiddenRedrawKey = null;
+      scheduleRaf();
     };
 
     // 성능 가드 — "SVG → Glass" 전환 시 콜드 스타트 스파이크를 제거하기 위해
@@ -365,29 +360,41 @@ export const useImageTransmissionTexture = (
     };
 
     // 스크롤은 RAF 로 병합 — 한 프레임 안에 여러 번 와도 redraw 는 1회만.
-    // 히어로 buffer 락(lockTextureAtScrollYRef) 쓰는 인스턴스는 중간~하단에서도
-    // `isGlassHidden` 이 막으면 잠긴 frame 이 한 번도 안 그려질 수 있어 항상 rAF.
+    // 히어로 buffer 락은 lockY 이후 같은 스냅샷을 재사용하므로, 숨은 중간 구간에서는
+    // 첫 locked frame 만 데우고 이후 반복 drawImage/GPU 업로드를 건너뛴다.
     const onScroll = () => {
-      if (!lockOuterStoreRef.current && isGlassHidden()) return;
+      const hidden = isGlassHidden();
+      const lockY = lockOuterStoreRef.current?.current;
+      const isLocked =
+        lockY != null && Number.isFinite(lockY) && lockY > 0 && window.scrollY >= lockY;
+
+      if (!lockOuterStoreRef.current && hidden) return;
+      if (hidden && isLocked) {
+        const key = `${Math.round(lockY)}:${window.innerWidth}x${window.innerHeight}`;
+        if (lockedHiddenRedrawKey === key) return;
+        lockedHiddenRedrawKey = key;
+      } else if (!hidden) {
+        lockedHiddenRedrawKey = null;
+      }
       scheduleRaf();
     };
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", scheduleRaf);
+    window.addEventListener("resize", scheduleFreshRaf);
 
     const target = targetRef?.current ?? null;
     let ro: ResizeObserver | null = null;
     if (target && typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(() => scheduleRaf());
+      ro = new ResizeObserver(() => scheduleFreshRaf());
       ro.observe(target);
     }
 
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
-    const onFontsReady = () => scheduleRaf();
+    const onFontsReady = () => scheduleFreshRaf();
     fonts?.addEventListener?.("loadingdone", onFontsReady);
 
     return () => {
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", scheduleRaf);
+      window.removeEventListener("resize", scheduleFreshRaf);
       ro?.disconnect();
       fonts?.removeEventListener?.("loadingdone", onFontsReady);
       if (raf) window.cancelAnimationFrame(raf);

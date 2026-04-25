@@ -54,36 +54,33 @@ const DEFAULT_LENS2_CONFIG: LensConfig = {
  *   - SVG 페이드 없음(항상 0). 3D 글래스만 보인다(준비 전엔 둘 다 비어 있을 수 있음).
  *   - `triggerVh` — 스크롤 위치·isAtTop 판정에만 사용(히어로 vs 그 아래).
  *
- * 하단(페이지 끝) 구간 — "SVG → 3D → SVG → 0" 시퀀스:
+ * 하단(페이지 끝) 구간 — SVG footer only:
  *   페이드-인 trigger 는 DOM sentinel (유튜브 섹션 바로 뒤) 위치 기반이라
  *   섹션 높이가 바뀌어도 anchor 가 따라간다.
- *   - `bottomGlassFadeInVh`  — sentinel 이 뷰포트를 몇 vh 통과하는 동안 글래스가 0 → 1 로 페이드인.
- *   - `bottomGlassFadeOutVh` — 페이지 하단 근접 시 글래스가 1 → 0 으로 페이드아웃 하는 구간 폭(vh).
+ *   - `bottomGlassFadeInVh`  — sentinel 이 뷰포트를 몇 vh 통과하는 동안 SVG footer 가 0 → 1 로 페이드인.
  *   - `bottomFadeVh`         — 맨 아래 남은 스크롤이 이 값 이하일 때 SVG 를 최종 페이드 0.
  *
  * 기본값(1080 vh 기준) 개념도:
- *   sentinel.top >= vh          → SVG stable (글래스 0)
- *   sentinel.top ∈ (0, vh)      → SVG ↔ Glass 크로스페이드 (fadeInVh 폭)
- *   sentinel.top < 0, 여유 remaining → Glass hold
- *   remaining ∈ (fade, fade+out) → Glass → SVG 크로스페이드
+ *   sentinel.top >= vh          → SVG 0
+ *   sentinel.top ∈ (0, vh)      → SVG 페이드인
+ *   sentinel.top < 0, 여유 remaining → SVG hold
  *   remaining ≤ fade            → SVG → 0
  */
 interface CrossfadeConfig {
   triggerVh: number;
   bottomFadeVh: number;
   bottomGlassFadeInVh: number;
-  bottomGlassFadeOutVh: number;
 }
 
 const DEFAULT_CROSSFADE: CrossfadeConfig = {
   triggerVh: 0.25,
   bottomFadeVh: 0.25,
   bottomGlassFadeInVh: 0.6,
-  bottomGlassFadeOutVh: 0.3,
 };
 
 /** main-page `GLASS_ORBS_DESKTOP_MIN_WIDTH_PX` 와 동기 — PC 에서만 “중간 구간 SVG 끔”. */
 const PC_MIN_WIDTH_PX = 768;
+const DESKTOP_BOTTOM_PRECHECK_VH = 4;
 
 /**
  * PC: 히어로~유튜브 하단 시퀀스 직전까지는 3D↔SVG 전환·SVG 노출을 하지 않는다.
@@ -112,27 +109,23 @@ function isDesktopBottomSequenceZone(
  * 하단 구간 glass/svg opacity 계산.
  *   - `sentinelTop` : 유튜브 섹션 끝 sentinel 의 `getBoundingClientRect().top` (px).
  *                    null 이면 sentinel 못 찾음 → remaining 만 기준으로 fallback.
- *   - glass 준비 안 됐으면 SVG 단독 페이드만 수행.
+ *   - 하단은 3D glass 없이 SVG footer만 페이드한다.
  */
 function computeBottomOpacities(
   sentinelTop: number | null,
   remainingVh: number,
   vh: number,
   cfg: CrossfadeConfig,
-  isGlassReady: boolean,
 ): { glassOpacity: number; svgOpacity: number } {
   const bottomFade = Math.max(0.0001, cfg.bottomFadeVh);
 
-  // glass 미준비 or sentinel 미존재 → SVG 단독 페이드.
-  if (!isGlassReady || sentinelTop === null) {
+  if (sentinelTop === null) {
     const svg = Math.min(1, Math.max(0, remainingVh / bottomFade));
     return { glassOpacity: 0, svgOpacity: svg };
   }
 
   const fadeIn = Math.max(0.0001, cfg.bottomGlassFadeInVh);
-  const fadeOut = Math.max(0.0001, cfg.bottomGlassFadeOutVh);
   const fadeInPx = fadeIn * vh;
-  const fadeOutVh = fadeOut;
 
   // Fade-in progress — sentinel 이 뷰포트를 통과하는 정도로 계산.
   //   sentinel.top >= vh         → inProgress=0 (sentinel 이 아직 뷰포트 밑)
@@ -140,22 +133,11 @@ function computeBottomOpacities(
   //   sentinel.top <= vh - fadeIn*vh      → inProgress=1 (완전히 통과)
   const inProgress = Math.min(1, Math.max(0, (vh - sentinelTop) / fadeInPx));
 
-  // Fade-out progress — 페이지 하단 remaining 이 (fade, fade+fadeOut) 구간일 때 1→0.
-  //   remaining >= fade + fadeOut → outProgress=1 (아직 멀음)
-  //   remaining = fade            → outProgress=0 (fade out 완료)
-  const outProgress = Math.min(
-    1,
-    Math.max(0, (remainingVh - bottomFade) / fadeOutVh),
-  );
+  // SVG footer만 사용: sentinel 기준으로 페이드인하고, 문서 끝에서는 hidden 처리.
+  const endFade = remainingVh <= bottomFade ? Math.min(1, Math.max(0, remainingVh / bottomFade)) : 1;
+  const svgOpacity = inProgress * endFade;
 
-  const glassOpacity = Math.min(inProgress, outProgress);
-  // SVG: 하단 최종 페이드 구간에선 remaining 기반으로 감쇠, 아니면 glass 의 보수값.
-  const svgOpacity =
-    remainingVh <= bottomFade
-      ? Math.min(1, Math.max(0, remainingVh / bottomFade))
-      : 1 - glassOpacity;
-
-  return { glassOpacity, svgOpacity };
+  return { glassOpacity: 0, svgOpacity };
 }
 /** 역방향(아래→위) 복귀 시 idle apply 스케줄링 여유 (스크롤 이벤트 종료 감지용) */
 const REVERSE_HANDOFF_IDLE_MS = 140;
@@ -358,6 +340,8 @@ interface SvgGlassOverlayProps {
    * 생략 시 하단 글래스 시퀀스가 비활성(기존 SVG 단독 페이드로 fallback).
    */
   bottomGlassAnchorRef?: RefObject<HTMLDivElement | null>;
+  /** 히어로 3D 글래스를 유지할 문서 Y 경계. 보통 회전슬라이드 섹션 하단. */
+  topGlassHoldDocYRef?: RefObject<number | null>;
 }
 
 export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(function SvgGlassOverlay(
@@ -367,6 +351,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     isRemount = false,
     onGlassReady,
     bottomGlassAnchorRef,
+    topGlassHoldDocYRef,
   },
   ref,
 ) {
@@ -504,19 +489,38 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         return { glassOpacity, svgOpacity, isAtTop };
       }
 
-      // 하단(비-히어로) — 모바일: sentinel 기반 시퀀스(기존).
-      // PC(너비≥768): 히어로~유튜브 “하단 시퀀스” 직전까지 — SVG=0(스위칭 없음)이나 3D 글래스는
-      //   스크롤 트리거로 끄지 않고 opacity 1로 유지(이전: 둘 다 0 → 3D가 사라짐).
-      const sentinel = bottomGlassAnchorRef?.current ?? null;
-      const sentinelTop = sentinel ? sentinel.getBoundingClientRect().top : null;
       const isDesktop =
         typeof window !== "undefined" && window.innerWidth >= PC_MIN_WIDTH_PX;
+      const topHoldY = topGlassHoldDocYRef?.current;
+      const isTopGlassHoldZone =
+        isDesktop && topHoldY != null && Number.isFinite(topHoldY) && y < topHoldY;
+      if (isTopGlassHoldZone) {
+        return {
+          glassOpacity: isGlassReady ? 1 : 0,
+          svgOpacity: 0,
+          isAtTop,
+        };
+      }
+
+      // 하단(비-히어로) — 모바일: sentinel 기반 시퀀스(기존).
+      // PC(너비≥768): 히어로~유튜브 “하단 시퀀스” 직전까지 — SVG=0(스위칭 없음)이나 3D 글래스는
+      //   실제로 전면 섹션 배경 뒤에 가려지므로 opacity 0으로 내려 합성/WebGL 비용을 제거한다.
+      if (isDesktop && remainingVh > DESKTOP_BOTTOM_PRECHECK_VH) {
+        return {
+          glassOpacity: 0,
+          svgOpacity: 0,
+          isAtTop,
+        };
+      }
+
+      const sentinel = bottomGlassAnchorRef?.current ?? null;
+      const sentinelTop = sentinel ? sentinel.getBoundingClientRect().top : null;
       if (
         isDesktop &&
         !isDesktopBottomSequenceZone(sentinelTop, remainingVh, vh, cfg)
       ) {
         return {
-          glassOpacity: isGlassReady ? 1 : 0,
+          glassOpacity: 0,
           svgOpacity: 0,
           isAtTop,
         };
@@ -526,7 +530,6 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         remainingVh,
         vh,
         cfg,
-        isGlassReady,
       );
       return { glassOpacity, svgOpacity, isAtTop };
     };
@@ -630,7 +633,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         clearTimeout(idleApplyTimer);
       }
     };
-  }, [glassLayerRef, bottomGlassAnchorRef]);
+  }, [glassLayerRef, bottomGlassAnchorRef, topGlassHoldDocYRef]);
 
   /**
    * glassReady / isRemount / crossfade 값이 바뀔 때 즉시 재계산.
@@ -654,13 +657,30 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     const remaining = docHeight - (y + vh);
     const remainingVh = remaining / vh;
     const isAtTop = y < triggerPx;
-
-    const sentinel = bottomGlassAnchorRef?.current ?? null;
-    const sentinelTop = sentinel ? sentinel.getBoundingClientRect().top : null;
+    const topHoldY = topGlassHoldDocYRef?.current;
 
     if (!glassReady) {
       // 히어로 첫 로드(isAtTop + !isRemount) 는 GSAP 담당 → 건드리지 않음.
       if (isAtTop && !isRemount) return;
+
+      const isDesktopSync = window.innerWidth >= PC_MIN_WIDTH_PX;
+      const isTopGlassHoldZone =
+        isDesktopSync && topHoldY != null && Number.isFinite(topHoldY) && y < topHoldY;
+      if (isTopGlassHoldZone) {
+        if (glassTarget) {
+          glassTarget.style.opacity = "0";
+          glassTarget.style.zIndex = "1";
+        }
+        if (svgTarget) {
+          svgTarget.style.visibility = "visible";
+          svgTarget.style.opacity = "0";
+        }
+        return;
+      }
+
+      const shouldSkipBottomRead = isDesktopSync && remainingVh > DESKTOP_BOTTOM_PRECHECK_VH;
+      const sentinel = shouldSkipBottomRead ? null : bottomGlassAnchorRef?.current ?? null;
+      const sentinelTop = sentinel ? sentinel.getBoundingClientRect().top : null;
 
       // 그 외(히어로 밖 mid-scroll reload, 역방향 리마운트, 하단 글래스 마운트 대기 등):
       // SVG 를 즉시 노출하고 글래스 레이어는 숨김.
@@ -669,18 +689,17 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         remainingVh,
         vh,
         crossfade,
-        false,
       );
-      const isDesktopSync = window.innerWidth >= PC_MIN_WIDTH_PX;
       let svgOpacity = isAtTop
         ? 0
-        : isDesktopSync &&
+        : shouldSkipBottomRead ||
+          (isDesktopSync &&
             !isDesktopBottomSequenceZone(
               sentinelTop,
               remainingVh,
               vh,
               crossfade,
-            )
+            ))
           ? 0
           : rawSvg;
       if (glassTarget) {
@@ -705,25 +724,44 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       reverseHandoffPendingRef.current = true;
     }
 
-    // 상단이면 glass=1 / svg=0, PC 중간은 3D=1·SVG=0(고정), 하단 시퀀스만 sentinel 공식.
+    const isDesktopSync = window.innerWidth >= PC_MIN_WIDTH_PX;
+    const isTopGlassHoldZone =
+      isDesktopSync && topHoldY != null && Number.isFinite(topHoldY) && y < topHoldY;
+    if (isTopGlassHoldZone) {
+      if (glassTarget) {
+        glassTarget.style.visibility = "visible";
+        glassTarget.style.opacity = "1";
+        glassTarget.style.zIndex = "1";
+      }
+      if (svgTarget) {
+        svgTarget.style.opacity = "0";
+        svgTarget.style.visibility = "visible";
+      }
+      return;
+    }
+
+    const shouldSkipBottomRead = !isAtTop && isDesktopSync && remainingVh > DESKTOP_BOTTOM_PRECHECK_VH;
+    const sentinel = shouldSkipBottomRead ? null : bottomGlassAnchorRef?.current ?? null;
+    const sentinelTop = sentinel ? sentinel.getBoundingClientRect().top : null;
+
+    // 상단이면 glass=1 / svg=0, PC 중간은 둘 다 0, 하단 시퀀스만 sentinel 공식.
     const bottom = computeBottomOpacities(
       sentinelTop,
       remainingVh,
       vh,
       crossfade,
-      true,
     );
-    const isDesktopSync = window.innerWidth >= PC_MIN_WIDTH_PX;
     const pcMidOff =
       !isAtTop &&
       isDesktopSync &&
-      !isDesktopBottomSequenceZone(
-        sentinelTop,
-        remainingVh,
-        vh,
-        crossfade,
-      );
-    const glassOpacity = isAtTop ? 1 : pcMidOff ? 1 : bottom.glassOpacity;
+      (shouldSkipBottomRead ||
+        !isDesktopBottomSequenceZone(
+          sentinelTop,
+          remainingVh,
+          vh,
+          crossfade,
+        ));
+    const glassOpacity = isAtTop ? 1 : pcMidOff ? 0 : bottom.glassOpacity;
     const svgOpacity = isAtTop ? 0 : pcMidOff ? 0 : bottom.svgOpacity;
 
     if (isAtTop) {
@@ -756,7 +794,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       svgTarget.style.opacity = svgOpacity.toFixed(3);
       svgTarget.style.visibility = "visible";
     }
-  }, [crossfade, glassLayerRef, glassReady, isRemount, bottomGlassAnchorRef]);
+  }, [crossfade, glassLayerRef, glassReady, isRemount, bottomGlassAnchorRef, topGlassHoldDocYRef]);
 
   return (
     <>

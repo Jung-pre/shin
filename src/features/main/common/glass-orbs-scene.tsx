@@ -604,16 +604,31 @@ function ScrollJourneyYRotation({
 }) {
   const groupRef = useRef<ThreeGroup>(null);
   const invalidate = useThree((s) => s.invalidate);
+  const lastInvalidatedProgressRef = useRef<number | null>(null);
+  const scrollRafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onScroll = () => {
-      invalidate();
+      if (scrollRafRef.current !== null) return;
+      scrollRafRef.current = window.requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        const p = Math.min(1, Math.max(0, progressRef.current));
+        const prev = lastInvalidatedProgressRef.current;
+        if (prev !== null && Math.abs(prev - p) <= 0.0005) return;
+        lastInvalidatedProgressRef.current = p;
+        invalidate();
+      });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [invalidate]);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (scrollRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
+  }, [invalidate, progressRef]);
 
   useEffect(() => {
     invalidate();

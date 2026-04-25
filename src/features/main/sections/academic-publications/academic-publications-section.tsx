@@ -9,11 +9,11 @@ import type { AcademicPublicationsSectionMessages } from "@/shared/i18n/messages
 import styles from "./academic-publications-section.module.css";
 
 const ACADEMIC_CARD_IMAGES = [
-  "/main/img_main_academic01.png",
-  "/main/img_main_academic02.png",
-  "/main/img_main_academic03.png",
-  "/main/img_main_academic04.png",
-  "/main/img_main_academic05.png",
+  "/main/img_main_academic01.webp",
+  "/main/img_main_academic02.webp",
+  "/main/img_main_academic03.webp",
+  "/main/img_main_academic04.webp",
+  "/main/img_main_academic05.webp",
 ] as const;
 
 function CardViewMoreIcon() {
@@ -119,7 +119,7 @@ export function AcademicPublicationsSection({ messages }: AcademicPublicationsSe
   return (
     <section ref={sectionRef} className={styles.section} aria-labelledby="academic-publications-heading">
       <img
-        src="/main/bg_academic.png"
+        src="/main/bg_academic.webp"
         alt=""
         className={styles.bgImage}
         aria-hidden="true"
@@ -131,7 +131,7 @@ export function AcademicPublicationsSection({ messages }: AcademicPublicationsSe
           <div ref={copyRef} className={styles.copy}>
             <p className={styles.eyebrow}>
               <img
-                src="/main/img_main_academic_logo.png"
+                src="/main/img_main_academic_logo.webp"
                 alt=""
                 className={styles.eyebrowLogo}
                 loading="eager"

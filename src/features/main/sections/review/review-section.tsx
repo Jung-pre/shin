@@ -32,15 +32,16 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
   const slideBlockRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const cardGridRef = useRef<HTMLUListElement>(null);
+  const bandTickerRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const [activeTab, setActiveTab] = useState(0);
   const filteredCards = messages.cards;
   const slides = useMemo(
     () => [
-      { src: "/main/img_main_review01.png", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
-      { src: "/main/img_main_review01_02.png", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
-      { src: "/main/img_main_review01_03.png", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
-      { src: "/main/img_main_review01_04.png", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
+      { src: "/main/img_main_review01.webp", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
+      { src: "/main/img_main_review01_02.webp", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
+      { src: "/main/img_main_review01_03.webp", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
+      { src: "/main/img_main_review01_04.webp", alt: messages.featuredAlt, href: messages.featuredHref ?? "#" },
     ],
     [messages.featuredAlt, messages.featuredHref],
   );
@@ -51,6 +52,20 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
     setActiveSlide(0);
     setSlideDirection(1);
   }, [activeTab]);
+
+  useEffect(() => {
+    const ticker = bandTickerRef.current;
+    if (!ticker || typeof window === "undefined" || !("IntersectionObserver" in window)) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        ticker.dataset.paused = entry.isIntersecting ? "false" : "true";
+      },
+      { rootMargin: "15% 0px" },
+    );
+    io.observe(ticker);
+    return () => io.disconnect();
+  }, []);
 
   const handleSlide = (direction: 1 | -1) => {
     if (slides.length < 2) return;
@@ -157,7 +172,7 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
           <div ref={headlineBlockRef} className={styles.headlineBlock}>
             <p className={styles.eyebrow} lang="en">
               <img
-                src="/main/img_main_review_logo.png"
+                src="/main/img_main_review_logo.webp"
                 alt=""
                 className={styles.eyebrowLogo}
                 aria-hidden="true"
@@ -214,7 +229,7 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
                 onClick={() => handleSlide(-1)}
               >
                 <Image
-                  src="/main/btn_left.png"
+                  src="/main/btn_left.webp"
                   alt=""
                   width={37}
                   height={37}
@@ -229,7 +244,7 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
                 onClick={() => handleSlide(1)}
               >
                 <Image
-                  src="/main/btn_right.png"
+                  src="/main/btn_right.webp"
                   alt=""
                   width={37}
                   height={37}
@@ -286,7 +301,7 @@ export function ReviewSection({ messages }: ReviewSectionProps) {
           </ul>
         </div>
       </div>
-      <div className={styles.bandTicker} aria-hidden>
+      <div ref={bandTickerRef} className={styles.bandTicker} data-paused="true" aria-hidden>
         <div className={`${styles.bandTrack} ${styles.bandTrackA}`}>
           {Array.from({ length: 6 }).map((_, index) => (
             <span key={`band-a-${index}`}>SHINSEGAE</span>

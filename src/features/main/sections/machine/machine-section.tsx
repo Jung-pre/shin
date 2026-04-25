@@ -109,7 +109,7 @@ export function MachineSection({ messages }: MachineSectionProps) {
             <div className={styles.headlineBlock}>
               <p className={styles.eyebrow}>
                 <Image
-                  src="/main/img_main_machine_logo.png"
+                  src="/main/img_main_machine_logo.webp"
                   alt=""
                   width={46}
                   height={28}

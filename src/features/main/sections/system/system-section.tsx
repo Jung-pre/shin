@@ -21,25 +21,32 @@ export function SystemSection({ messages }: SystemSectionProps) {
   const copyColumnRef = useRef<HTMLDivElement>(null);
   const imageRevealRef = useRef<HTMLDivElement>(null);
   const navRevealRef = useRef<HTMLDivElement>(null);
-  const [progress, setProgress] = useState(0);
+  const navItemRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
   const reduceMotion = useReducedMotion();
   const items = messages.items;
   const itemCount = items.length;
   if (itemCount === 0) return null;
 
-  const activeIndex = Math.min(itemCount - 1, Math.max(0, Math.floor(progress * itemCount)));
   const item = items[activeIndex];
-  const navProgress = progress * (itemCount - 1);
-
-  const getNavIntensity = (index: number) => {
-    const distance = Math.abs(navProgress - index);
-    return Math.max(0, 1 - distance);
-  };
 
   useLayoutEffect(() => {
     const section = sectionRef.current;
     const pinEl = pinRef.current;
     if (!section || !pinEl) return;
+
+    const applyProgress = (progress: number) => {
+      const nextIndex = Math.min(itemCount - 1, Math.max(0, Math.floor(progress * itemCount)));
+      setActiveIndex((prev) => (prev === nextIndex ? prev : nextIndex));
+
+      const navProgress = progress * (itemCount - 1);
+      navItemRefs.current.forEach((el, index) => {
+        if (!el) return;
+        const intensity = Math.max(0, 1 - Math.abs(navProgress - index));
+        el.style.opacity = String(0.3 + intensity * 0.7);
+        el.style.transform = `scaleY(${0.86 + intensity * 0.14})`;
+      });
+    };
 
     const st = ScrollTrigger.create({
       trigger: section,
@@ -50,11 +57,12 @@ export function SystemSection({ messages }: SystemSectionProps) {
       scrub: 1,
       anticipatePin: 1,
       invalidateOnRefresh: true,
-      onUpdate: (self) => setProgress(self.progress),
+      onUpdate: (self) => applyProgress(self.progress),
     });
+    applyProgress(0);
 
     return () => st.kill();
-  }, []);
+  }, [itemCount]);
 
   useGSAP(
     () => {
@@ -106,7 +114,7 @@ export function SystemSection({ messages }: SystemSectionProps) {
                 >
                   <p className={styles.eyebrow} lang="en">
                     <img
-                      src="/main/img_main_system_logo.png"
+                      src="/main/img_main_system_logo.webp"
                       alt=""
                       className={styles.eyebrowLogo}
                       aria-hidden="true"
@@ -152,19 +160,13 @@ export function SystemSection({ messages }: SystemSectionProps) {
 
             <div ref={navRevealRef} className={styles.bottomNavBar} aria-hidden>
               {Array.from({ length: itemCount }).map((_, index) => (
-                (() => {
-                  const intensity = getNavIntensity(index);
-                  return (
                 <span
                   key={`system-nav-${index}`}
-                  className={styles.bottomNavItem}
-                  style={{
-                    opacity: 0.3 + intensity * 0.7,
-                    transform: `scaleY(${0.86 + intensity * 0.14})`,
+                  ref={(el) => {
+                    navItemRefs.current[index] = el;
                   }}
+                  className={styles.bottomNavItem}
                 />
-                  );
-                })()
               ))}
             </div>
           </div>

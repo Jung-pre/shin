@@ -54,35 +54,35 @@ const ROTATION_SLIDES: readonly (CylinderSlide & {
   lineDesc: string;
 })[] = [
   {
-    imageSrc: "/main/img_main_slide01.png",
+    imageSrc: "/main/img_main_slide01.webp",
     label: "Smile & Lasik",
     lineEn: "Smile & Lasik",
     lineKo: "신세계 시력교정",
     lineDesc: "안경 없는 자유, 스마일로 완성하세요",
   },
   {
-    imageSrc: "/main/img_main_slide02.png",
+    imageSrc: "/main/img_main_slide02.webp",
     label: "Prebyopia & Cataract",
     lineEn: "Prebyopia & Cataract",
     lineKo: "신세계 노안·백내장",
     lineDesc: "제2의 청춘, 선명함을 되찾아 드립니다",
   },
   {
-    imageSrc: "/main/img_main_slide03.png",
+    imageSrc: "/main/img_main_slide03.webp",
     label: "Eye Diseases",
     lineEn: "Eye Diseases",
     lineKo: "신세계 안질환",
     lineDesc: "더 건강한 눈, 더 선명한 세상을 위해, 최선의 치료를 약속합니다.",
   },
   {
-    imageSrc: "/main/img_main_slide04.png",
+    imageSrc: "/main/img_main_slide04.webp",
     label: "Chief Physician",
     lineEn: "Chief Physician",
     lineKo: "김재봉 대표원장",
     lineDesc: "외안부 · 시력교정 · 백내장 안과전문의",
   },
   {
-    imageSrc: "/main/img_main_slide05.png",
+    imageSrc: "/main/img_main_slide05.webp",
     label: "Patient Stories",
     lineEn: "Patient Stories",
     lineKo: "신세계 고객 후기",

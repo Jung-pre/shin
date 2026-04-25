@@ -86,7 +86,7 @@ export function BlogSection({ messages }: BlogSectionProps) {
           <div ref={textBlockRef} className={styles.leftColumn}>
             <p className={styles.eyebrow} lang="en">
             <img
-              src="/main/img_main_blog_logo.png"
+              src="/main/img_main_blog_logo.webp"
               alt=""
               className={styles.eyebrowLogo}
               aria-hidden="true"
@@ -120,7 +120,7 @@ export function BlogSection({ messages }: BlogSectionProps) {
               <div className={styles.heroBottomRow}>
                 <p className={styles.heroSource}>
                   <img
-                    src="/main/img_main_blog_logo02.png"
+                    src="/main/img_main_blog_logo02.webp"
                     alt=""
                     className={styles.heroSourceLogo}
                     aria-hidden="true"
@@ -172,7 +172,7 @@ export function BlogSection({ messages }: BlogSectionProps) {
                       loading="lazy"
                     />
                     <Image
-                      src="/main/img_main_blog_hover.png"
+                      src="/main/img_main_blog_hover.webp"
                       alt=""
                       width={58}
                       height={58}

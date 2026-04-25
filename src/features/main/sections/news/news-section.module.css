@@ -1,6 +1,6 @@
 .section {
   width: 100%;
-  background: url("/main/img_main_news_bg.png") center / cover no-repeat;
+  background: url("/main/img_main_news_bg.webp") center / cover no-repeat;
 }
 
 .inner {

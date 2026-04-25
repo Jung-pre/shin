@@ -395,6 +395,11 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
 
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
+      if (!visibleRef.current) {
+        previousScrollY = currentScrollY;
+        return;
+      }
+
       const delta = currentScrollY - previousScrollY;
       previousScrollY = currentScrollY;
 
