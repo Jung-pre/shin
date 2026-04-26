@@ -225,6 +225,34 @@
 
 /* ----- 글래스 씬 옵션 (재사용 패널) — `glass-scene-config-panel.tsx` ----- */
 
+/* 여러 dev 패널을 한 곳(우하단)에 쌓음 — `glass-orbs-scene.tsx` */
+.glassConfigPanelsStack {
+  position: fixed;
+  right: max(0.75rem, env(safe-area-inset-right, 0px));
+  bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  z-index: 12000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  max-width: min(22.5rem, calc(100vw - 1.5rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+  max-height: calc(100dvh - 1.25rem - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  font-family: var(--font-pretendard-stack);
+  pointer-events: auto;
+}
+
+.glassConfigPanelsStack .configPanelHost {
+  position: static;
+  max-width: 100%;
+  max-height: min(39dvh, 26rem);
+  flex-shrink: 0;
+}
+
+.glassConfigPanelsStack .configPanelHost:only-child {
+  max-height: min(calc(100dvh - 2rem - env(safe-area-inset-top, 0px)), 32rem);
+}
+
 .configPanelHost {
   position: fixed;
   right: max(0.75rem, env(safe-area-inset-right, 0px));

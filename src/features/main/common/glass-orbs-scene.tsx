@@ -1048,9 +1048,13 @@ const DEFAULT_SOURCE_IMAGE = "/main/img_hero.webp";
  * dev 튜닝용 글래스 Scene Config 패널 노출 스위치.
  *   - false: state/핸들러/리셋 로직은 살려둠, UI(토글 버튼 + 팝업) 만 렌더 스킵.
  *   - true: "옵션 열기" 토글 + Scene Config 팝업 노출.
+ *   - full: 렌즈·orbs·rim·인터랙션·조명 + HDR(섹션) 등 (전송 정합은 제외).
+ *   - hdr: HDR 환경만 (full 과 중복).
+ *   - heroImageAlignment: MeshTransmission / DOM — 전송 img 정합 (transmission id 섹션만).
  */
 const SHOW_GLASS_SCENE_CONFIG_PANEL = false;
 const SHOW_GLASS_HDR_LAYER_PANEL = false;
+const SHOW_GLASS_HERO_IMAGE_ALIGNMENT_PANEL = false;
 
 /* ---------- 히어로 인트로 애니메이션 ---------- */
 
@@ -1258,11 +1262,25 @@ export const GlassOrbsScene = ({
           />
         </Canvas>
       </div>
-      {SHOW_GLASS_SCENE_CONFIG_PANEL ? (
-        <GlassSceneConfigPanel config={config} onChange={setConfig} onReset={resetConfig} variant="full" />
-      ) : null}
-      {SHOW_GLASS_HDR_LAYER_PANEL ? (
-        <GlassSceneConfigPanel config={config} onChange={setConfig} onReset={resetConfig} variant="hdr" />
+      {SHOW_GLASS_SCENE_CONFIG_PANEL ||
+      SHOW_GLASS_HDR_LAYER_PANEL ||
+      SHOW_GLASS_HERO_IMAGE_ALIGNMENT_PANEL ? (
+        <div className={styles.glassConfigPanelsStack}>
+          {SHOW_GLASS_SCENE_CONFIG_PANEL ? (
+            <GlassSceneConfigPanel config={config} onChange={setConfig} onReset={resetConfig} variant="full" />
+          ) : null}
+          {SHOW_GLASS_HDR_LAYER_PANEL ? (
+            <GlassSceneConfigPanel config={config} onChange={setConfig} onReset={resetConfig} variant="hdr" />
+          ) : null}
+          {SHOW_GLASS_HERO_IMAGE_ALIGNMENT_PANEL ? (
+            <GlassSceneConfigPanel
+              config={config}
+              onChange={setConfig}
+              onReset={resetConfig}
+              variant="heroImageAlignment"
+            />
+          ) : null}
+        </div>
       ) : null}
     </>
   );

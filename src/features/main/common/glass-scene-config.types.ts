@@ -137,8 +137,8 @@ export const DEFAULT_CONFIG: SceneConfig = {
   orb2Enabled: true,
   orb2OffsetX: 3.3,
   orb2OffsetY: 0,
-  orb2OffsetZ: -0.95,
-  orb2Scale: 1.07,
+  orb2OffsetZ: -1.35,
+  orb2Scale: 1.1,
 
   orbMerge: "separate",
 
