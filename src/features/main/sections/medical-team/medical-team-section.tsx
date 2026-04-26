@@ -117,7 +117,12 @@ export function MedicalTeamSection({ messages }: MedicalTeamSectionProps) {
   }, []);
 
   return (
-    <section ref={sectionRef} className={styles.section} aria-label="Medical team">
+    <section
+      ref={sectionRef}
+      className={styles.section}
+      aria-label="Medical team"
+      data-gnb-tint-from
+    >
       <div
         ref={curtainRef}
         className={styles.curtain}

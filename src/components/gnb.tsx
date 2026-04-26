@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
+import { usePathname } from "next/navigation";
 import type { Locale } from "@/shared/config/i18n";
 import styles from "./gnb.module.css";
 
 const SCROLL_IDLE_TOP_PX = 48;
 const SCROLL_DELTA_MIN = 6;
+/** `data-gnb-tint-from`(의료진 섹션) 상단이 이 픽셀 이하로 올라오면 GNB 틴트 */
+const GNB_TINT_SECTION_TOP_PX = 96;
 
 interface GnbProps {
   locale: Locale;
@@ -45,10 +48,13 @@ const accountLabel: Record<Locale, string> = {
 };
 
 export const Gnb = ({ locale }: GnbProps) => {
+  const pathname = usePathname();
   const items = navItems[locale];
   const [isHeaderHidden, setIsHeaderHidden] = useState(false);
+  const [hasGnbTint, setHasGnbTint] = useState(false);
   const lastScrollYRef = useRef(0);
   const rafRef = useRef<number | null>(null);
+  const tintRafRef = useRef<number | null>(null);
 
   const updateFromScroll = useCallback(() => {
     rafRef.current = null;
@@ -79,8 +85,41 @@ export const Gnb = ({ locale }: GnbProps) => {
     };
   }, [updateFromScroll]);
 
+  useEffect(() => {
+    const updateTint = () => {
+      tintRafRef.current = null;
+      const el = document.querySelector("[data-gnb-tint-from]");
+      if (!el) {
+        setHasGnbTint(false);
+        return;
+      }
+      const top = el.getBoundingClientRect().top;
+      setHasGnbTint(top < GNB_TINT_SECTION_TOP_PX);
+    };
+
+    const scheduleTint = () => {
+      if (tintRafRef.current != null) return;
+      tintRafRef.current = window.requestAnimationFrame(updateTint);
+    };
+
+    updateTint();
+    window.addEventListener("scroll", scheduleTint, { passive: true });
+    window.addEventListener("resize", scheduleTint);
+    return () => {
+      window.removeEventListener("scroll", scheduleTint);
+      window.removeEventListener("resize", scheduleTint);
+      if (tintRafRef.current != null) window.cancelAnimationFrame(tintRafRef.current);
+    };
+  }, [pathname]);
+
   return (
-    <div className={clsx(styles.gnbFrame, isHeaderHidden && styles.gnbFrameHidden)}>
+    <div
+      className={clsx(
+        styles.gnbFrame,
+        isHeaderHidden && styles.gnbFrameHidden,
+        hasGnbTint && styles.gnbFrameTinted,
+      )}
+    >
       <div className={styles.glass} aria-hidden />
       <header className={styles.inner}>
         <nav className={styles.nav} aria-label="Global navigation">

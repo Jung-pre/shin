@@ -19,6 +19,15 @@
   pointer-events: none;
 }
 
+/* 메인 랜딩: 의료진 섹션 도달 이후 — GNB만 옅은 흰 배경 */
+.gnbFrameTinted {
+  background: rgb(255 255 255 / 20%);
+}
+
+.gnbFrameTinted .glass {
+  background: transparent;
+}
+
 /* 글라스: 이 노드엔 transform 을 쓰지 않음(부모 gnbFrame 가 스크롤 애니 전담) */
 .glass {
   position: absolute;
