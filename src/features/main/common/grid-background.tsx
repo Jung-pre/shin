@@ -19,16 +19,18 @@ const seededNoise = (seed: number) => {
   return value - Math.floor(value);
 };
 
-const createStops = (length: number, step: number) => {
+/**
+ * 0 ~ length(뷰의 너비/높이) 구간에 그리드 라인을 둔다.
+ * `length % step` 이 0이 아니면 “고정 step으로 쌓다가 0/length에 맞춤”이면
+ * viewBox(0,0,…) 안에서 **맨 끝 칸만** 잔여 픽셀로 좁아지는 이슈가 난다.
+ * 대상 step(rem 기반 px)으로 칸 *개수*만 잡고, `length`를 n등분해
+ * 모든 칸의 픽셀 크기를 동일하게 맞춘다.
+ */
+const createStops = (length: number, targetStepPx: number) => {
   if (length <= 1) return [0, 1];
-  const stops = [0];
-  let cursor = step;
-  while (cursor < length) {
-    stops.push(cursor);
-    cursor += step;
-  }
-  stops.push(length);
-  return stops;
+  const step = Math.max(1, targetStepPx);
+  const n = Math.max(1, Math.ceil(length / step));
+  return Array.from({ length: n + 1 }, (_, i) => (i * length) / n);
 };
 
 
