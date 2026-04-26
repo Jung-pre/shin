@@ -286,6 +286,62 @@ const VerticalLinesLayer = forwardRef<LinesHandle, VLinesProps>(function Vertica
   );
 });
 
+/** 꼭지점 십자 마크 — 격자선 인덱스 기준 2칸(2 line step)마다 1개 */
+interface CornerTickLayerProps {
+  xStops: number[];
+  yStops: number[];
+  width: number;
+  height: number;
+  currentRef: MutableRefObject<number>;
+}
+
+const CornerTickLayer = forwardRef<LinesHandle, CornerTickLayerProps>(function CornerTickLayer(
+  { xStops, yStops, width, height, currentRef },
+  ref,
+) {
+  const gRefs = useRef<Array<SVGGElement | null>>([]);
+
+  const tickIndices = useMemo(() => {
+    const list: { i: number; j: number }[] = [];
+    for (let i = 0; i < xStops.length; i += 2) {
+      for (let j = 0; j < yStops.length; j += 2) {
+        list.push({ i, j });
+      }
+    }
+    return list;
+  }, [xStops, yStops]);
+
+  const rebuild = useCallback(() => {
+    const ratio = currentRef.current;
+    for (let k = 0; k < tickIndices.length; k++) {
+      const g = gRefs.current[k];
+      if (!g) continue;
+      const { i, j } = tickIndices[k];
+      const x = xStops[i];
+      const y0 = yStops[j];
+      const wy = getWarpedY(x, y0, width, height, ratio);
+      g.setAttribute("transform", `translate(${x - 5} ${wy - 5})`);
+    }
+  }, [tickIndices, xStops, yStops, width, height, currentRef]);
+
+  useImperativeHandle(ref, () => ({ rebuild }), [rebuild]);
+
+  useEffect(() => { rebuild(); }, [rebuild]);
+
+  return (
+    <g className={styles.cornerTickLayer} aria-hidden>
+      {tickIndices.map((pair, k) => (
+        <g
+          key={`tick-${pair.i}-${pair.j}`}
+          ref={(el) => { gRefs.current[k] = el; }}
+        >
+          <path d="M5 0V10" className={styles.cornerTickMark} fill="none" />
+          <path d="M0 5H10" className={styles.cornerTickMark} fill="none" />
+        </g>
+      ))}
+    </g>
+  );
+});
 
 export function GridBackground({ visible = true }: GridBackgroundProps) {
   const backgroundRef = useRef<HTMLDivElement>(null);
@@ -300,6 +356,7 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
   const hLinesHandleRef = useRef<LinesHandle | null>(null);
   const vLinesHandleRef = useRef<LinesHandle | null>(null);
   const cellsHandleRef = useRef<LinesHandle | null>(null);
+  const cornerTickHandleRef = useRef<LinesHandle | null>(null);
   /** 한 번이라도 스크롤(휠)이 발생한 뒤엔, 멈출 때 WARP_RETAIN 으로 제자리 복귀를 막는다. */
   const hasScrolledRef = useRef(false);
 
@@ -333,6 +390,7 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
       hLinesHandleRef.current?.rebuild();
       vLinesHandleRef.current?.rebuild();
       cellsHandleRef.current?.rebuild();
+      cornerTickHandleRef.current?.rebuild();
     }
   }, [visible]);
 
@@ -380,6 +438,7 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
       hLinesHandleRef.current?.rebuild();
       vLinesHandleRef.current?.rebuild();
       cellsHandleRef.current?.rebuild();
+      cornerTickHandleRef.current?.rebuild();
 
       const deltaToTarget = Math.abs(targetRef.current - currentRef.current);
       // target이 WARP_RETAIN으로 0이 아니어도 current가 수렴하면 루프 종료
@@ -509,6 +568,14 @@ export function GridBackground({ visible = true }: GridBackgroundProps) {
             currentRef={currentRef}
           />
         </g>
+        <CornerTickLayer
+          ref={cornerTickHandleRef}
+          xStops={xStops}
+          yStops={yStops}
+          width={width}
+          height={height}
+          currentRef={currentRef}
+        />
       </svg>
     </div>
   );

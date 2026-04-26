@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
+import clsx from "clsx";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { GridBackground } from "@/features/main/common/grid-background";
@@ -111,6 +112,8 @@ const GLASS_ORBS_UNMOUNT_SCROLL_VH = 0.55;
 const GLASS_ORBS_REMOUNT_SCROLL_VH = 0.18;
 /** 데스크탑 상시 마운트 기준 뷰포트 폭. 이 이하는 모바일 언마운트 전략. */
 const GLASS_ORBS_DESKTOP_MIN_WIDTH_PX = 768;
+/** 퀵바: 스크롤 방향 감지 시 최소 이동(px) — 미세 떨림에 반응하지 않게 */
+const QUICK_DOCK_SCROLL_DELTA_EPS = 1.5;
 
 export const MainPage = ({
   locale,
@@ -157,11 +160,17 @@ export const MainPage = ({
    */
   const rotatingSlideSectionRef = useRef<HTMLElement | null>(null);
   const heroSectionRef = useRef<HTMLElement | null>(null);
+  /** 히어로 `section`이 뷰포트와 겹칠 때만 `img_hero`를 MeshTransmission buffer에 그린다. */
+  const transmissionImageEnabledRef = useRef(true);
   /** `scrollY` > 이 값이면 전송 buffer 의 img_hero 정렬을 이 스크롤에 고정(히어로와만 1:1) */
   const glassTextureLockScrollYRef = useRef<number | null>(null);
   const glassJourneyProgressRef = useRef(0);
   const glassMouseTiltHoldDocYRef = useRef<number | null>(null);
   const [isGridVisible, setIsGridVisible] = useState(true);
+  /** 히어로 퀵바: 아래로 스크롤 시 숨김, 위로 스크롤 시 노출(스크롤 0이면 항상 노출) */
+  const [isQuickBarRevealedByScroll, setIsQuickBarRevealedByScroll] = useState(true);
+  const [prefersQuickDockReducedMotion, setPrefersQuickDockReducedMotion] = useState(false);
+  const lastScrollYForQuickDockRef = useRef(0);
   const [isGlassOrbsMounted, setIsGlassOrbsMounted] = useState(GLASS_ORBS_ENABLED);
   /**
    * 기본 진입부터 "3D 준비 전엔 SVG 우선" 정책을 사용한다.
@@ -362,6 +371,19 @@ export const MainPage = ({
       glassTextureLockScrollYRef.current = heroBottomAbsY;
     };
 
+    /** 히어로를 세로로 벗어나면 buffer 이미지 끄기(빈/투명 캔버스 → env·뒤 DOM만) */
+    const updateTransmissionImageGate = () => {
+      if (!GLASS_ORBS_ENABLED) return;
+      const h = heroSectionRef.current;
+      if (!h) {
+        transmissionImageEnabledRef.current = true;
+        return;
+      }
+      const r = h.getBoundingClientRect();
+      const vh = window.innerHeight;
+      transmissionImageEnabledRef.current = r.bottom > 0 && r.top < vh;
+    };
+
     const runFrame = () => {
       scheduled = false;
       rafId = null;
@@ -422,6 +444,7 @@ export const MainPage = ({
     };
 
     const schedule = () => {
+      updateTransmissionImageGate();
       if (scheduled) return;
       scheduled = true;
       rafId = window.requestAnimationFrame(runFrame);
@@ -444,6 +467,7 @@ export const MainPage = ({
       ro = new ResizeObserver(() => {
         refreshRotatingSectionBounds();
         refreshHeroTextureLock();
+        updateTransmissionImageGate();
       });
       ro.observe(mainRef.current);
     }
@@ -458,6 +482,7 @@ export const MainPage = ({
     if (!GLASS_ORBS_ENABLED) {
       setIsGlassOrbsMounted(false);
     } else {
+      updateTransmissionImageGate();
       runFrame();
     }
 
@@ -473,6 +498,52 @@ export const MainPage = ({
       if (rafId !== null) window.cancelAnimationFrame(rafId);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncReduce = () => {
+      const on = mq.matches;
+      setPrefersQuickDockReducedMotion(on);
+      if (on) {
+        setIsQuickBarRevealedByScroll(true);
+      }
+    };
+    syncReduce();
+    mq.addEventListener("change", syncReduce);
+    return () => {
+      mq.removeEventListener("change", syncReduce);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    lastScrollYForQuickDockRef.current = window.scrollY;
+
+    const onScroll = () => {
+      const y = window.scrollY;
+      const prevY = lastScrollYForQuickDockRef.current;
+      const delta = y - prevY;
+      lastScrollYForQuickDockRef.current = y;
+
+      if (y < 1) {
+        setIsQuickBarRevealedByScroll(true);
+        return;
+      }
+      if (prefersQuickDockReducedMotion) return;
+      if (Math.abs(delta) < QUICK_DOCK_SCROLL_DELTA_EPS) return;
+      if (delta > 0) {
+        setIsQuickBarRevealedByScroll(false);
+      } else {
+        setIsQuickBarRevealedByScroll(true);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [prefersQuickDockReducedMotion]);
 
   return (
     <main ref={mainRef} className={styles.root}>
@@ -506,6 +577,7 @@ export const MainPage = ({
                     mouseTiltHoldDocYRef={glassMouseTiltHoldDocYRef}
                     lockTextureAtScrollYRef={glassTextureLockScrollYRef}
                     transmissionSourceLayoutRef={heroSectionRef}
+                    transmissionImageEnabledRef={transmissionImageEnabledRef}
                     onFirstFrameReady={() => {
                       setIsGlassOrbsReady(true);
                       setIsGlassRemount(false);
@@ -534,7 +606,17 @@ export const MainPage = ({
           className={heroSectionStyles.quickDock}
           data-hero-intro="quickbar"
         >
-          <HeroQuickBar messages={heroQuickBar} locale={locale} />
+          <div
+            className={clsx(
+              styles.quickDockScrollLayer,
+              !isQuickBarRevealedByScroll &&
+                !prefersQuickDockReducedMotion &&
+                styles.quickDockScrollLayerHidden,
+            )}
+            aria-hidden={!isQuickBarRevealedByScroll && !prefersQuickDockReducedMotion}
+          >
+            <HeroQuickBar messages={heroQuickBar} locale={locale} />
+          </div>
         </div>
       </div>
       <div className={styles.foreground}>

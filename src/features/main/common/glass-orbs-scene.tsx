@@ -1063,6 +1063,11 @@ export interface GlassOrbsSceneProps {
    * 뷰포트가 아닌 이 박스에 맞춰 Next/Image DOM 과 전송 캔버스를 1:1로 맞춘다. 미지정 시 뷰포트.
    */
   transmissionSourceLayoutRef?: RefObject<HTMLElement | null>;
+  /**
+   * `false`이면 전송 buffer 에 이미지를 그리지 않음(캔버스 투명) — 히어로 뷰 밖 등.
+   * `use-dom-transmission-texture`의 `transmissionImageEnabledRef`에 연결.
+   */
+  transmissionImageEnabledRef?: RefObject<boolean>;
 }
 
 const DEFAULT_SOURCE_IMAGE = "/main/img_hero.webp";
@@ -1111,6 +1116,7 @@ export const GlassOrbsScene = ({
   mouseTiltHoldDocYRef,
   lockTextureAtScrollYRef,
   transmissionSourceLayoutRef,
+  transmissionImageEnabledRef,
   onFirstFrameReady,
 }: GlassOrbsSceneProps) => {
   const [config, setConfig] = useState<SceneConfig>(DEFAULT_CONFIG);
@@ -1148,6 +1154,7 @@ export const GlassOrbsScene = ({
       lockTextureAtScrollYRef,
       sourceLayoutRef: transmissionSourceLayoutRef,
       sampleViewportRef: sceneWrapRef,
+      transmissionImageEnabledRef,
     },
   );
 

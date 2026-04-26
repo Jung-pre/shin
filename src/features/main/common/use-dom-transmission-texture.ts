@@ -3,6 +3,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { CanvasTexture, SRGBColorSpace } from "three";
 
+/** CSS `linear-gradient(<angle>deg, c0, c1)` 축으로 buffer 전체(w×h)를 채운다. (0° = 12시, 시계방향) */
+function fillCanvasWithCssLinearGradient(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  angleCssDeg: number,
+  c0: string,
+  c1: string,
+) {
+  const rad = ((angleCssDeg - 90) * Math.PI) / 180;
+  const half = Math.hypot(w, h) * 0.5;
+  const cx = w * 0.5;
+  const cy = h * 0.5;
+  const g = ctx.createLinearGradient(
+    cx - half * Math.cos(rad),
+    cy - half * Math.sin(rad),
+    cx + half * Math.cos(rad),
+    cy + half * Math.sin(rad),
+  );
+  g.addColorStop(0, c0);
+  g.addColorStop(1, c1);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+}
+
+const TRANSMISSION_HERO_OFF_GRADIENT = {
+  angleDeg: 105,
+  c0: "#936ec4",
+  c1: "#ba7b99",
+} as const;
+
 export interface ImageTransmissionTexture {
   /** 마운트 시 1회 생성된 고정 텍스처 인스턴스 (MeshTransmissionMaterial buffer 에 꽂는다) */
   texture: CanvasTexture | null;
@@ -74,6 +105,11 @@ export interface UseImageTransmissionTextureOptions {
    * canvas-local sampling 좌표와 DOM 좌표가 섞여 큰 Y 오차가 난다.
    */
   sampleViewportRef?: RefObject<HTMLElement | null>;
+  /**
+   * `false`이면(히어로 `section`이 뷰에서 벗어난 뒤) `img_hero` 대신
+   * buffer 캔버스 전체에 `linear-gradient(105deg, #936ec4, #ba7b99)` 를 채운다.
+   */
+  transmissionImageEnabledRef?: RefObject<boolean>;
   /** target 중심 기준 추가 이동(px) — DOM 글자와 buffer 스케일/정합 미세 조정 */
   centerOffsetXPx?: number;
   centerOffsetYPx?: number;
@@ -108,6 +144,7 @@ export const useImageTransmissionTexture = (
     lockTextureAtScrollYRef,
     sourceLayoutRef,
     sampleViewportRef,
+    transmissionImageEnabledRef,
     centerOffsetXPx = 0,
     centerOffsetYPx = 0,
   } = options;
@@ -119,6 +156,9 @@ export const useImageTransmissionTexture = (
    */
   const lockOuterStoreRef = useRef(lockTextureAtScrollYRef);
   lockOuterStoreRef.current = lockTextureAtScrollYRef;
+
+  const transmissionGateOuterRef = useRef(transmissionImageEnabledRef);
+  transmissionGateOuterRef.current = transmissionImageEnabledRef;
 
   const texture = useMemo((): CanvasTexture | null => {
     if (typeof document === "undefined") {
@@ -188,6 +228,21 @@ export const useImageTransmissionTexture = (
     // 투명 모드: 캔버스를 clear 상태로 유지 → MTM 굴절 레이어가 비어 env 반사와
     // 뒤쪽 DOM 이 그대로 비친다. 하단 피날레 글래스에서 사용.
     if (!renderImage) {
+      texture.needsUpdate = true;
+      invalidate?.();
+      return;
+    }
+
+    const gateRef = transmissionGateOuterRef.current;
+    if (gateRef && gateRef.current === false) {
+      fillCanvasWithCssLinearGradient(
+        ctx,
+        canvasW,
+        canvasH,
+        TRANSMISSION_HERO_OFF_GRADIENT.angleDeg,
+        TRANSMISSION_HERO_OFF_GRADIENT.c0,
+        TRANSMISSION_HERO_OFF_GRADIENT.c1,
+      );
       texture.needsUpdate = true;
       invalidate?.();
       return;

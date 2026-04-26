@@ -107,6 +107,33 @@
   }
 }
 
+/* 퀵바: 아래로 스크롤 시 아래로 밀리며 페이드아웃 → 위로 스크롤 시 그 역(아래→제자리) */
+.quickDockScrollLayer {
+  --quick-dock-exit-dy: min(2.75rem, 5.5dvh);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: auto;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 0.58s cubic-bezier(0.19, 1, 0.22, 1),
+    transform 0.58s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+.quickDockScrollLayerHidden {
+  opacity: 0;
+  transform: translate3d(0, var(--quick-dock-exit-dy), 0);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quickDockScrollLayer {
+    transition: none;
+  }
+}
+
 .foreground {
   position: relative;
   z-index: 4;

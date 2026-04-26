@@ -29,6 +29,17 @@
   stroke-width: 1;
 }
 
+/* 격자 꼭지점 십자(10×10 viewBox) — 2 line 간격마다 1개 */
+.cornerTickLayer {
+  pointer-events: none;
+}
+
+.cornerTickMark {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1;
+}
+
 .lineLayer {
   opacity: 0.72;
 }
