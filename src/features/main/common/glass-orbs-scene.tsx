@@ -939,7 +939,11 @@ function GlassOrbsContent({
       {/* FirstFrameReady 는 envSettled(=env 가 꺼져있거나 이미 로드됨) 일 때만 프레임 카운트 시작.
           모든 레이어(버퍼 이미지 + HDR env + 유리)가 한 화면에 놓인 뒤에 ready 신호를 쏘므로,
           SvgGlassOverlay 크로스페이드가 "부분만 먼저 나오는" 단계 없이 한번에 전환된다. */}
-      <FirstFrameReady enabled={envSettled} onReady={onFirstFrameReady} />
+      <FirstFrameReady
+        enabled={envSettled}
+        onReady={onFirstFrameReady}
+        minFrames={config.envEnabled || config.rimEnabled ? 3 : 2}
+      />
       {/* HDR env 가 ON 이면 그쪽이 우선. OFF 일 때는 경량 Rim env 가 유리 엣지에 색을 깔아 준다. */}
       {config.envEnabled ? (
         <Suspense fallback={null}>
@@ -970,30 +974,44 @@ function GlassOrbsContent({
 interface FirstFrameReadyProps {
   enabled?: boolean;
   onReady?: () => void;
+  /**
+   * HDR·Rim env 사용 시 PMREM/반사가 첫 1~2 프레임에 아직 끊겨 보일 수 있어 3 권장.
+   * (env 꺼짐이면 2로 충분)
+   */
+  minFrames?: number;
 }
 
 /**
  * 모든 의존성이 준비된 뒤 "실제로 몇 프레임 그려졌을 때" onReady 를 1회 호출.
  *
  * 단일 프레임만으로는 HDR PMREM 굽기·버퍼 텍스처 업로드 직후 타이밍이라서
- * 화면이 아직 안정되지 않은 경우가 있다. 2프레임 이상 그린 뒤 신호를 보내면
- * 크로스페이드 시점에 유리·반사·배경이 모두 제자리에 있어 한 덩어리로 나타난다.
+ * 화면이 아직 안정되지 않은 경우가 있다. 2프레임(환경꺼짐) 또는 3프레임(HDR/Rim) 이상
+ * 그린 뒤 신호를 보내면 크로스페이드 시 유리·반사가 한 덩어리로 맞는다.
  */
-const FirstFrameReady = ({ enabled = true, onReady }: FirstFrameReadyProps) => {
+const FirstFrameReady = ({ enabled = true, onReady, minFrames = 2 }: FirstFrameReadyProps) => {
   const firedRef = useRef(false);
   const framesRef = useRef(0);
   const invalidate = useThree((state) => state.invalidate);
 
+  // enabled 꺼질 때마다 다음 준비 사이클을 위해 리셋
+  useEffect(() => {
+    if (!enabled) {
+      framesRef.current = 0;
+      firedRef.current = false;
+    }
+  }, [enabled]);
+
   // enabled 가 true 로 바뀌는 순간 demand frameloop 에서도 다음 프레임이 돌도록
-  // invalidate 를 한 번 걸어 주고, 카운터가 2에 도달할 때까지 계속 다음 프레임을 예약.
+  // invalidate 를 한 번 걸고, minFrames 프레임까지 예약.
   useEffect(() => {
     if (enabled && !firedRef.current) invalidate();
   }, [enabled, invalidate]);
 
+  const threshold = minFrames;
   useFrame(() => {
     if (!enabled || firedRef.current || !onReady) return;
     framesRef.current += 1;
-    if (framesRef.current < 2) {
+    if (framesRef.current < threshold) {
       invalidate();
       return;
     }

@@ -167,6 +167,9 @@ export const MainPage = ({
    * (webp 텍스처/첫 프레임 준비가 끝나면 onFirstFrameReady 에서 true 로 전환)
    */
   const [isGlassOrbsReady, setIsGlassOrbsReady] = useState(false);
+  /** "신세계안과" 글자 stagger 가 끝난 뒤에만 3D 등장(페이드)을 허용(원래 `lastCharEnd` 타이밍) */
+  const [heroCharRevealDone, setHeroCharRevealDone] = useState(false);
+  const heroGlassIntroPlayedRef = useRef(false);
   /**
    * true = 역방향 재진입으로 인한 리마운트 상황.
    * SvgGlassOverlay 에서 "첫 로드" vs "역방향 재진입"을 구분하는 데 쓴다.
@@ -239,7 +242,9 @@ export const MainPage = ({
   /**
    * 첫 진입 시 히어로 등장 모션:
    *   1) "신세계안과" 타이틀을 글자 1개씩 stagger 로 페이드 인 + slight slide up
-   *   2) 마지막 글자가 자리잡은 뒤 글래스 렌즈가 블러에서 선명하게 등장
+   *   2) **HDR+전송+2프레임( onFirstFrameReady ) 준비 완료** + 마지막 글자 타이밍 이후에
+   *      글래스( glassIntroWrap ) opacity 페이드 — 늦게 붙는 환경맵(HDR) 때문에 검은/하얀 라인이
+   *      먼저 보이는 것을 막는다. useEffect 로 비동기 게이트.
    *   3) 퀵바가 아래에서 슬라이드 업
    *
    * 주의: 타이틀 h1 자체는 `heroTitleRef` 로 글래스 텍스처 정렬에 쓰이므로 transform 금지.
@@ -275,13 +280,11 @@ export const MainPage = ({
         },
         0,
       )
-        // 글자 다 나타난 직후 글래스 등장 (위치는 처음부터 최종값 유지, opacity 만 페이드)
-        .to(
-          glassIntro,
-          { autoAlpha: 1, duration: 1.25 },
-          lastCharEnd,
-        )
-        // 퀵바는 글래스와 살짝 겹쳐 0.25s 뒤에 슬라이드 업
+        // 글래스 페이드는 3D 준비(onFirstFrameReady) + 별도 useEffect — 여기서는 "글자 끝" 플래그만
+        .add(() => {
+          setHeroCharRevealDone(true);
+        }, lastCharEnd)
+        // 퀵바는 기존 타이밍(글자·글래스와 겹쳐 올라옴, 글래스 늦게 뜨면 먼저 퀵바가 보일 수 있음)
         .to(
           '[data-hero-intro="quickbar"]',
           { autoAlpha: 1, y: 0, duration: 0.9 },
@@ -290,6 +293,15 @@ export const MainPage = ({
     },
     { scope: mainRef },
   );
+
+  useEffect(() => {
+    if (!GLASS_ORBS_ENABLED) return;
+    if (!isGlassOrbsReady || !heroCharRevealDone || heroGlassIntroPlayedRef.current) return;
+    const el = glassIntroRef.current;
+    if (!el) return;
+    heroGlassIntroPlayedRef.current = true;
+    gsap.to(el, { autoAlpha: 1, duration: 1.25, ease: "power3.out" });
+  }, [isGlassOrbsReady, heroCharRevealDone]);
 
   useEffect(() => {
     if (!isGlassOrbsMounted) return;
