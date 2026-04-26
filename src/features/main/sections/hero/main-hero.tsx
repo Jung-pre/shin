@@ -8,8 +8,6 @@ import type { Locale } from "@/shared/config/i18n";
 import styles from "./main-hero.module.css";
 
 export interface MainHeroProps {
-  heroQuickBar: HeroQuickBarMessages;
-  locale: Locale;
   /** 글래스 렌즈가 정합될 타이틀(h1) ref — MainPage 에서 GlassOrbsScene 과 공유 */
   titleRef?: RefObject<HTMLHeadingElement | null>;
   /** 히어로 섹션 루트 — 글래스 전송 img 스크롤 락(히어로 끝) 계산용 */
@@ -88,7 +86,7 @@ const IconMapPin = () => (
   </svg>
 );
 
-function QuickBar({ messages, locale }: { messages: HeroQuickBarMessages; locale: Locale }) {
+export function HeroQuickBar({ messages, locale }: { messages: HeroQuickBarMessages; locale: Locale }) {
   const [name, setName] = useState("");
   const [contact, setContact] = useState("");
   const [department, setDepartment] = useState("");
@@ -208,8 +206,8 @@ function QuickBar({ messages, locale }: { messages: HeroQuickBarMessages; locale
 
 /* ---------- 메인 히어로(첫 화면) ---------- */
 
-/** 그리드·글래스·타이틀은 `MainPage` 전역 레이어 — 여기서는 퀵바가 있는 히어로 구역만. */
-export function MainHero({ heroQuickBar, locale, titleRef, sectionRef }: MainHeroProps) {
+/** 히어로 타이틀·배경 — 퀵바는 `MainPage`에서 글래스 DOM 다음에 둬 스택이 확실하다. */
+export function MainHero({ titleRef, sectionRef }: MainHeroProps) {
   const titleText = "신세계안과";
 
   return (
@@ -234,9 +232,6 @@ export function MainHero({ heroQuickBar, locale, titleRef, sectionRef }: MainHer
             </span>
           ))}
         </h1>
-      </div>
-      <div className={styles.quickDock} data-hero-intro="quickbar">
-        <QuickBar messages={heroQuickBar} locale={locale} />
       </div>
     </section>
   );

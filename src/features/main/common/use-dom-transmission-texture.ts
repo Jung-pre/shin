@@ -62,6 +62,18 @@ export interface UseImageTransmissionTextureOptions {
    * `null`/미전달 = 항상 실시간 스크롤.
    */
   lockTextureAtScrollYRef?: RefObject<number | null>;
+  /**
+   * `next/image` `fill` + `object-fit: cover` 이 깔리는 **박스**(예: 히어로 `section` 루트).
+   * 전달 시 cover/contain 스케일이 `window` 전체가 아닌 이 rect 의 width·height 를 쓴다.
+   * DOM 배경과 전송 캔버스가 1:1로 맞지 않는 “이중 잔상” 의 주요 원인이 전·후자 불일치였다.
+   */
+  sourceLayoutRef?: RefObject<HTMLElement | null>;
+  /**
+   * MeshTransmission buffer 를 샘플링하는 실제 R3F canvas 박스.
+   * 글래스 레이어가 전체 뷰포트가 아닌 중앙 밴드일 때 window 좌표로 텍스처를 그리면
+   * canvas-local sampling 좌표와 DOM 좌표가 섞여 큰 Y 오차가 난다.
+   */
+  sampleViewportRef?: RefObject<HTMLElement | null>;
   /** target 중심 기준 추가 이동(px) — DOM 글자와 buffer 스케일/정합 미세 조정 */
   centerOffsetXPx?: number;
   centerOffsetYPx?: number;
@@ -70,10 +82,10 @@ export interface UseImageTransmissionTextureOptions {
 /**
  * 렌즈(MeshTransmissionMaterial) 의 `buffer` uniform 에 꽂을 이미지 텍스처 훅.
  *
- * 정렬 규칙 — CSS 의 `background-position: center center; background-size: cover;` 와 동일:
- *   1. 이미지의 기하학적 중심(0.5, 0.5) 을 targetRef bbox 중심 (없으면 뷰포트 중심) 에 둠.
- *   2. fit="cover" 이면 이미지를 뷰포트 전체를 덮도록 확대 (긴 쪽에 맞춤, 반대쪽은 잘림).
- *   3. fit="contain" 이면 뷰포트 안에 전부 들어가도록 축소 (짧은 쪽에 맞춤, 반대쪽 여백).
+ * 정합 규칙 — (sourceLayoutRef 가 있을 때) 그 요소에 대한 CSS `object-fit: cover` /
+ *   `object-position` 과 동일한 스케일·크롭을 쓰고, (없을 때) 뷰포트 전체에 대해 동일.
+ *   1. 포인트 (srcFocusX, srcFocusY) 가 targetRef bbox 중심(없으면 레이아웃 박스/뷰 중심)에 오도록 이미지 좌상단을 둔다.
+ *   2. cover / contain 은 **레이아웃 박스** width·height (또는 뷰포트) 기준.
  *
  * 캔버스는 뷰포트 픽셀의 0.5 배 해상도로 — buffer 는 MTM resolution 이 작아 그대로도 충분.
  *
@@ -94,6 +106,8 @@ export const useImageTransmissionTexture = (
     srcFocusY = 0.5,
     renderImage = true,
     lockTextureAtScrollYRef,
+    sourceLayoutRef,
+    sampleViewportRef,
     centerOffsetXPx = 0,
     centerOffsetYPx = 0,
   } = options;
@@ -135,8 +149,25 @@ export const useImageTransmissionTexture = (
     if (typeof window === "undefined") return;
 
     const canvas = texture.image as HTMLCanvasElement;
-    const viewW = Math.max(2, Math.floor(window.innerWidth));
-    const viewH = Math.max(2, Math.floor(window.innerHeight));
+    const sampleRect = sampleViewportRef?.current?.getBoundingClientRect();
+    const hasSampleViewport =
+      sampleRect && sampleRect.width > 1 && sampleRect.height > 1;
+    const sampleLeft = hasSampleViewport ? sampleRect.left : 0;
+    const sampleTop = hasSampleViewport ? sampleRect.top : 0;
+    const viewW = Math.max(
+      2,
+      Math.floor(hasSampleViewport ? sampleRect.width : window.innerWidth),
+    );
+    const viewH = Math.max(
+      2,
+      Math.floor(hasSampleViewport ? sampleRect.height : window.innerHeight),
+    );
+
+    const layoutRect = sourceLayoutRef?.current?.getBoundingClientRect();
+    const hasLayout = layoutRect && layoutRect.width > 1 && layoutRect.height > 1;
+    /** cover/contain — Next/Image `fill` 부모 box 와 동일한 기준 (미지정 시 뷰포트) */
+    const layoutW = hasLayout ? layoutRect.width : viewW;
+    const layoutH = hasLayout ? layoutRect.height : viewH;
 
     // 성능: 캔버스 실제 픽셀은 절반 해상도면 충분.
     const scaleDown = 0.5;
@@ -176,12 +207,12 @@ export const useImageTransmissionTexture = (
     const imgW = img.naturalWidth || img.width || 1;
     const imgH = img.naturalHeight || img.height || 1;
 
-    // cover: 이미지가 뷰포트를 덮도록 → 배율은 max(viewW/imgW, viewH/imgH)
-    // contain: 이미지가 뷰포트 안에 들어오도록 → 배율은 min(...)
+    // cover: 이미지가 레이아웃 박스(또는 뷰포트)를 덮도록
+    // contain: 그 안에 전부 들어오도록
     const baseScale =
       fit === "contain"
-        ? Math.min(viewW / imgW, viewH / imgH)
-        : Math.max(viewW / imgW, viewH / imgH);
+        ? Math.min(layoutW / imgW, layoutH / imgH)
+        : Math.max(layoutW / imgW, layoutH / imgH);
     const scale = baseScale * Math.max(0.01, zoom);
 
     const drawW = imgW * scale;
@@ -204,16 +235,18 @@ export const useImageTransmissionTexture = (
     const rect = target?.getBoundingClientRect();
     const adjTop = rect ? rect.top + scrollShiftY : 0;
     const adjBottom = rect ? rect.bottom + scrollShiftY : 0;
+    const localAdjTop = adjTop - sampleTop;
+    const localAdjBottom = adjBottom - sampleTop;
     const viewportFarMargin = viewH * 1.5;
     const targetInRange =
       rect &&
       rect.width > 0 &&
       (scrollShiftY > 0 ||
-        (adjTop > -viewportFarMargin && adjBottom < viewH + viewportFarMargin));
+        (localAdjTop > -viewportFarMargin && localAdjBottom < viewH + viewportFarMargin));
     const baseCenterX =
-      targetInRange && rect ? rect.left + rect.width / 2 : viewW / 2;
+      targetInRange && rect ? rect.left + rect.width / 2 - sampleLeft : viewW / 2;
     const baseCenterY =
-      targetInRange && rect ? adjTop + rect.height / 2 : viewH / 2;
+      targetInRange && rect ? localAdjTop + rect.height / 2 : viewH / 2;
     const centerX = baseCenterX + centerOffsetXPx;
     const centerY = baseCenterY + centerOffsetYPx;
 
@@ -247,6 +280,8 @@ export const useImageTransmissionTexture = (
     renderImage,
     centerOffsetXPx,
     centerOffsetYPx,
+    sourceLayoutRef,
+    sampleViewportRef,
   ]);
 
   // 이미지 로드
@@ -336,7 +371,7 @@ export const useImageTransmissionTexture = (
 
     // 성능 가드 — "SVG → Glass" 전환 시 콜드 스타트 스파이크를 제거하기 위해
     // 실제 가시 구간보다 넓은 "프리월 버퍼" 를 둔다.
-    //   · 상단: crossfade triggerVh ≈ 0.25 + 프리월 1.0 = scrollY ≤ vh * 2.0 이면 redraw 허용
+    //   · 상단: heroSection + 프리월 1.0vh 근처까지 redraw 허용
     //     → 사용자가 역방향으로 접근할 때 글래스가 보이기 전에 이미 최신 스냅샷이 캔버스에 그려져 있어
     //       opacity 0→1 전환 첫 프레임이 "따뜻한" 상태에서 시작.
     //   · 하단: 이미 3vh 수준에서 variant 전환이 일어나므로 remaining ≤ 1.5vh 여유로 충분.
@@ -388,6 +423,25 @@ export const useImageTransmissionTexture = (
       ro.observe(target);
     }
 
+    const layoutHost = sourceLayoutRef?.current ?? null;
+    let roLayout: ResizeObserver | null = null;
+    if (layoutHost && layoutHost !== target && typeof ResizeObserver !== "undefined") {
+      roLayout = new ResizeObserver(() => scheduleFreshRaf());
+      roLayout.observe(layoutHost);
+    }
+
+    const sampleHost = sampleViewportRef?.current ?? null;
+    let roSample: ResizeObserver | null = null;
+    if (
+      sampleHost &&
+      sampleHost !== target &&
+      sampleHost !== layoutHost &&
+      typeof ResizeObserver !== "undefined"
+    ) {
+      roSample = new ResizeObserver(() => scheduleFreshRaf());
+      roSample.observe(sampleHost);
+    }
+
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
     const onFontsReady = () => scheduleFreshRaf();
     fonts?.addEventListener?.("loadingdone", onFontsReady);
@@ -396,10 +450,12 @@ export const useImageTransmissionTexture = (
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", scheduleFreshRaf);
       ro?.disconnect();
+      roLayout?.disconnect();
+      roSample?.disconnect();
       fonts?.removeEventListener?.("loadingdone", onFontsReady);
       if (raf) window.cancelAnimationFrame(raf);
     };
-  }, [texture, redraw, targetRef]);
+  }, [texture, redraw, targetRef, sourceLayoutRef, sampleViewportRef]);
 
   return { texture, version, isSourceReady };
 };

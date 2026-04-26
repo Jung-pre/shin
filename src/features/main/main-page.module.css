@@ -79,9 +79,37 @@
   will-change: opacity, filter;
 }
 
+/* 히어로 section — 글래스( z:1~3 )·foreground(2) 아래. 퀵바·타이틀·img_hero 는 항상 이 레이어에 둬
+ * foreground 에 묶이면 “전체(2) > 글래스(1)” 일 때 퀵바만 앞에 나온 듯 떨어져 보인다. */
+.heroBaseLayer {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  margin: 0 auto;
+  isolation: isolate;
+}
+
+/* 퀵바: DOM 은 글래스(고정) 직후 — fixed 가 아닌 main 기준 absolute + 첫 뷰포트 높이로 히어로와 동일 스크롤 */
+.heroQuickDockHost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 4;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .heroQuickDockHost {
+    height: calc(100vh - 88px);
+  }
+}
+
 .foreground {
   position: relative;
-  z-index: 2;
+  z-index: 4;
   width: 100%;
   margin: 0 auto;
 }

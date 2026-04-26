@@ -6,7 +6,8 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { GridBackground } from "@/features/main/common/grid-background";
 import { SvgGlassOverlay } from "@/features/main/common/svg-glass-overlay";
-import { MainHero } from "@/features/main/sections/hero/main-hero";
+import { MainHero, HeroQuickBar } from "@/features/main/sections/hero/main-hero";
+import heroSectionStyles from "./sections/hero/main-hero.module.css";
 import type { Locale } from "@/shared/config/i18n";
 import type {
   AcademicPublicationsSectionMessages,
@@ -478,6 +479,9 @@ export const MainPage = ({
       <div className={styles.gridFixed} aria-hidden>
         <GridBackground visible={isGridVisible} />
       </div>
+      <div className={styles.heroBaseLayer}>
+        <MainHero titleRef={heroTitleRef} sectionRef={heroSectionRef} />
+      </div>
       {GLASS_ORBS_ENABLED ? (
         <>
           <div ref={glassLayerRef} className={styles.glassLayer}>
@@ -501,6 +505,7 @@ export const MainPage = ({
                     journeyProgressRef={glassJourneyProgressRef}
                     mouseTiltHoldDocYRef={glassMouseTiltHoldDocYRef}
                     lockTextureAtScrollYRef={glassTextureLockScrollYRef}
+                    transmissionSourceLayoutRef={heroSectionRef}
                     onFirstFrameReady={() => {
                       setIsGlassOrbsReady(true);
                       setIsGlassRemount(false);
@@ -520,16 +525,19 @@ export const MainPage = ({
             onGlassReady={() => setIsGlassRemount(false)}
             bottomGlassAnchorRef={youtubeBottomRef}
             topGlassHoldDocYRef={glassMouseTiltHoldDocYRef}
+            heroSectionForZRef={heroSectionRef}
           />
         </>
       ) : null}
+      <div className={styles.heroQuickDockHost}>
+        <div
+          className={heroSectionStyles.quickDock}
+          data-hero-intro="quickbar"
+        >
+          <HeroQuickBar messages={heroQuickBar} locale={locale} />
+        </div>
+      </div>
       <div className={styles.foreground}>
-        <MainHero
-          heroQuickBar={heroQuickBar}
-          locale={locale}
-          titleRef={heroTitleRef}
-          sectionRef={heroSectionRef}
-        />
         <TypographyScrollSection messages={typographySection} />
         <RotatingSlideSection ref={rotatingSlideSectionRef} />
         <MedicalTeamSection messages={medicalTeamSection} />

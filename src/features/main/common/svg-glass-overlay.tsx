@@ -74,7 +74,8 @@ interface CrossfadeConfig {
 }
 
 const DEFAULT_CROSSFADE: CrossfadeConfig = {
-  triggerVh: 0.25,
+  /** heroSectionForZRef 없을 때만 “짧은 스크롤” z 판정에 사용(있으면 히어로 rect 우선) */
+  triggerVh: 1.0,
   bottomFadeVh: 0.25,
   bottomGlassFadeInVh: 0.6,
 };
@@ -82,6 +83,24 @@ const DEFAULT_CROSSFADE: CrossfadeConfig = {
 /** main-page `GLASS_ORBS_DESKTOP_MIN_WIDTH_PX` 와 동기 — PC 에서만 “중간 구간 SVG 끔”. */
 const PC_MIN_WIDTH_PX = 768;
 const DESKTOP_BOTTOM_PRECHECK_VH = 4;
+
+/**
+ * 3D 글래스를 `foreground`(z:2) 위에 둘지( z:3 ) 뒤에 둘지( z:1 ) — `img_hero` + 전송 buffer 1:1이 안 깨지려면
+ * 히어로 `section`이 뷰와 겹칠 땐 위에 둬야 DOM 배경·타이틀과 합성이 맞는다. 옛 vh 스크롤( triggerVh )만
+ * 쓰면 0.25vh 직후 z:1 + PC 홀드 구간( isTopGlassHoldZone )에서 오래 z:1이 되어 “잔상/이중상”이 난다.
+ */
+function shouldStackGlassAboveForeground(
+  scrollY: number,
+  vh: number,
+  triggerVh: number,
+  heroSectionRef: RefObject<HTMLElement | null> | undefined,
+): boolean {
+  const hero = heroSectionRef?.current;
+  if (hero) {
+    return hero.getBoundingClientRect().bottom > 0.5;
+  }
+  return scrollY < vh * Math.max(0, triggerVh);
+}
 
 /**
  * PC: 히어로~유튜브 하단 시퀀스 직전까지는 3D↔SVG 전환·SVG 노출을 하지 않는다.
@@ -343,6 +362,11 @@ interface SvgGlassOverlayProps {
   bottomGlassAnchorRef?: RefObject<HTMLDivElement | null>;
   /** 히어로 3D 글래스를 유지할 문서 Y 경계. 보통 회전슬라이드 섹션 하단. */
   topGlassHoldDocYRef?: RefObject<number | null>;
+  /**
+   * 히어로 섹션( img_hero 가 깔리는 `section` ). 있으면 `getBoundingClientRect().bottom > 0` 인
+   * 동안 글래스 z:3(foreground 위) 유지 — 전역 triggerVh(짧은 스크롤)보다 먼저 “히어로 가시”를 우선한다.
+   */
+  heroSectionForZRef?: RefObject<HTMLElement | null>;
 }
 
 export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(function SvgGlassOverlay(
@@ -353,6 +377,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     onGlassReady,
     bottomGlassAnchorRef,
     topGlassHoldDocYRef,
+    heroSectionForZRef,
   },
   ref,
 ) {
@@ -401,9 +426,15 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
     if (!glassTarget) return;
 
     const vh = window.innerHeight || 1;
-    const isAtTop = window.scrollY < vh * crossfade.triggerVh;
-    glassTarget.style.zIndex = isAtTop ? "3" : "1";
-  }, [crossfade.triggerVh, glassLayerRef]);
+    const y = window.scrollY;
+    const shouldStack = shouldStackGlassAboveForeground(
+      y,
+      vh,
+      crossfade.triggerVh,
+      heroSectionForZRef,
+    );
+    glassTarget.style.zIndex = shouldStack ? "3" : "1";
+  }, [crossfade.triggerVh, glassLayerRef, heroSectionForZRef]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -450,6 +481,12 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       const y = window.scrollY;
       const now = performance.now();
       const triggerPx = vh * triggerVh;
+      const inHeroZStack = shouldStackGlassAboveForeground(
+        y,
+        vh,
+        triggerVh,
+        heroSectionForZRef,
+      );
 
       const docHeight = Math.max(
         document.documentElement.scrollHeight,
@@ -458,13 +495,12 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       const remaining = docHeight - (y + vh);
       const remainingVh = remaining / vh;
 
-      const isAtTop = y < triggerPx;
       const delta = y - prevScrollYRef.current;
       if (Math.abs(delta) > 0.3) {
         lastScrollTsRef.current = now;
       }
       prevScrollYRef.current = y;
-      if (!isAtTop) {
+      if (!inHeroZStack) {
         wasBelowTriggerRef.current = true;
         reverseHandoffPendingRef.current = true;
       }
@@ -476,7 +512,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
        * 하단은 `computeBottomOpacities` 에서 isGlassReady 가 false 면 자동으로 SVG 단독 페이드
        * 로 fallback 하므로 별도 분기 없이 동일 공식 사용 → "미드스크롤 새로고침" 대응도 유지.
        */
-      if (!isGlassReady && isAtTop && !isRemountRef.current) {
+      if (!isGlassReady && inHeroZStack && !isRemountRef.current) {
         return null; // 히어로 구간 첫 로드 — GSAP 담당
       }
 
@@ -487,8 +523,8 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         onGlassReadyRef.current?.();
       }
 
-      if (isAtTop) {
-        // 상단(히어로) — 3D만(준비되면 1). SVG는 항상 0(상단에선 Figma SVG 렌즈 미사용).
+      if (inHeroZStack) {
+        // 히어로 `section` 이 뷰와 겹침 — 3D만(준비되면 1), z:3(foreground 위)로 DOM img_hero / 전송 1:1
         const canShowGlassAtTop = isGlassReady;
         const glassOpacity = canShowGlassAtTop ? 1 : 0;
         const svgOpacity = 0;
@@ -497,7 +533,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
           reverseHandoffPendingRef.current = false;
           wasBelowTriggerRef.current = false;
         }
-        return { glassOpacity, svgOpacity, isAtTop, keepGlassAbove: true };
+        return { glassOpacity, svgOpacity, isAtTop: inHeroZStack, keepGlassAbove: true };
       }
 
       const isDesktop =
@@ -509,7 +545,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         return {
           glassOpacity: isGlassReady ? 1 : 0,
           svgOpacity: 0,
-          isAtTop,
+          isAtTop: false,
           keepGlassAbove: false,
         };
       }
@@ -521,7 +557,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         return {
           glassOpacity: 0,
           svgOpacity: 0,
-          isAtTop,
+          isAtTop: false,
           keepGlassAbove: false,
         };
       }
@@ -535,7 +571,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         return {
           glassOpacity: 0,
           svgOpacity: 0,
-          isAtTop,
+          isAtTop: false,
           keepGlassAbove: false,
         };
       }
@@ -545,7 +581,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         vh,
         cfg,
       );
-      return { glassOpacity, svgOpacity, isAtTop, keepGlassAbove: false };
+      return { glassOpacity, svgOpacity, isAtTop: false, keepGlassAbove: false };
     };
 
     const apply = () => {
@@ -645,7 +681,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         clearTimeout(idleApplyTimer);
       }
     };
-  }, [glassLayerRef, bottomGlassAnchorRef, topGlassHoldDocYRef]);
+  }, [glassLayerRef, bottomGlassAnchorRef, topGlassHoldDocYRef, heroSectionForZRef]);
 
   /**
    * glassReady / isRemount / crossfade 값이 바뀔 때 즉시 재계산.
@@ -661,19 +697,23 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
 
     const vh = window.innerHeight || 1;
     const y = window.scrollY;
-    const triggerPx = vh * crossfade.triggerVh;
+    const inHeroZStack = shouldStackGlassAboveForeground(
+      y,
+      vh,
+      crossfade.triggerVh,
+      heroSectionForZRef,
+    );
     const docHeight = Math.max(
       document.documentElement.scrollHeight,
       document.body.scrollHeight,
     );
     const remaining = docHeight - (y + vh);
     const remainingVh = remaining / vh;
-    const isAtTop = y < triggerPx;
     const topHoldY = topGlassHoldDocYRef?.current;
 
     if (!glassReady) {
-      // 히어로 첫 로드(isAtTop + !isRemount) 는 GSAP 담당 → 건드리지 않음.
-      if (isAtTop && !isRemount) return;
+      // 히어로 가시(첫 로드) + !isRemount 는 GSAP 담당 → 건드리지 않음.
+      if (inHeroZStack && !isRemount) return;
 
       const isDesktopSync = window.innerWidth >= PC_MIN_WIDTH_PX;
       const isTopGlassHoldZone =
@@ -681,8 +721,8 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       if (isTopGlassHoldZone) {
         if (glassTarget) {
           glassTarget.style.opacity = "0";
-          // 히어로(isAtTop) — 홀드 존이어도 타이틀 위에 3, 히어로 이후~회전슬라이드 끝까지는 1
-          glassTarget.style.zIndex = isAtTop ? "3" : "1";
+          // 히어로 section 이 아직 뷰와 겹치면 3(전송·img 1:1), 아니면 1
+          glassTarget.style.zIndex = inHeroZStack ? "3" : "1";
         }
         if (svgTarget) {
           svgTarget.style.visibility = "visible";
@@ -703,21 +743,21 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
         vh,
         crossfade,
       );
-      let svgOpacity = isAtTop
+      let svgOpacity = inHeroZStack
         ? 0
         : shouldSkipBottomRead ||
-          (isDesktopSync &&
-            !isDesktopBottomSequenceZone(
-              sentinelTop,
-              remainingVh,
-              vh,
-              crossfade,
-            ))
+            (isDesktopSync &&
+              !isDesktopBottomSequenceZone(
+                sentinelTop,
+                remainingVh,
+                vh,
+                crossfade,
+              ))
           ? 0
           : rawSvg;
       if (glassTarget) {
         glassTarget.style.opacity = "0";
-        glassTarget.style.zIndex = isAtTop ? "3" : "1";
+        glassTarget.style.zIndex = inHeroZStack ? "3" : "1";
       }
       if (svgTarget) {
         svgTarget.style.visibility = "visible";
@@ -732,7 +772,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       onGlassReadyRef.current?.();
     }
 
-    if (!isAtTop) {
+    if (!inHeroZStack) {
       wasBelowTriggerRef.current = true;
       reverseHandoffPendingRef.current = true;
     }
@@ -744,8 +784,8 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       if (glassTarget) {
         glassTarget.style.visibility = "visible";
         glassTarget.style.opacity = "1";
-        // 스크롤 루프 `compute` 와 동일: 히어로 안만 z:3, 그 아래(홀드 존)는 z:1
-        glassTarget.style.zIndex = isAtTop ? "3" : "1";
+        // compute 과 동일: 히어로가 뷰에 남아 있으면 z:3
+        glassTarget.style.zIndex = inHeroZStack ? "3" : "1";
       }
       if (svgTarget) {
         svgTarget.style.opacity = "0";
@@ -754,11 +794,11 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       return;
     }
 
-    const shouldSkipBottomRead = !isAtTop && isDesktopSync && remainingVh > DESKTOP_BOTTOM_PRECHECK_VH;
+    const shouldSkipBottomRead = !inHeroZStack && isDesktopSync && remainingVh > DESKTOP_BOTTOM_PRECHECK_VH;
     const sentinel = shouldSkipBottomRead ? null : bottomGlassAnchorRef?.current ?? null;
     const sentinelTop = sentinel ? sentinel.getBoundingClientRect().top : null;
 
-    // 상단이면 glass=1 / svg=0, PC 중간은 둘 다 0, 하단 시퀀스만 sentinel 공식.
+    // 히어로(가시)면 glass=1 / svg=0, PC 중간은 둘 다 0, 하단 시퀀스만 sentinel 공식.
     const bottom = computeBottomOpacities(
       sentinelTop,
       remainingVh,
@@ -766,7 +806,7 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       crossfade,
     );
     const pcMidOff =
-      !isAtTop &&
+      !inHeroZStack &&
       isDesktopSync &&
       (shouldSkipBottomRead ||
         !isDesktopBottomSequenceZone(
@@ -775,10 +815,10 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
           vh,
           crossfade,
         ));
-    const glassOpacity = isAtTop ? 1 : pcMidOff ? 0 : bottom.glassOpacity;
-    const svgOpacity = isAtTop ? 0 : pcMidOff ? 0 : bottom.svgOpacity;
+    const glassOpacity = inHeroZStack ? 1 : pcMidOff ? 0 : bottom.glassOpacity;
+    const svgOpacity = inHeroZStack ? 0 : pcMidOff ? 0 : bottom.svgOpacity;
 
-    if (isAtTop) {
+    if (inHeroZStack) {
       reverseHandoffPendingRef.current = false;
       wasBelowTriggerRef.current = false;
     }
@@ -802,13 +842,13 @@ export const SvgGlassOverlay = forwardRef<HTMLDivElement, SvgGlassOverlayProps>(
       } else {
         glassTarget.style.opacity = glassOpacity.toFixed(3);
       }
-      glassTarget.style.zIndex = isAtTop ? "3" : "1";
+      glassTarget.style.zIndex = inHeroZStack ? "3" : "1";
     }
     if (svgTarget) {
       svgTarget.style.opacity = svgOpacity.toFixed(3);
       svgTarget.style.visibility = "visible";
     }
-  }, [crossfade, glassLayerRef, glassReady, isRemount, bottomGlassAnchorRef, topGlassHoldDocYRef]);
+  }, [crossfade, glassLayerRef, glassReady, isRemount, bottomGlassAnchorRef, topGlassHoldDocYRef, heroSectionForZRef]);
 
   return (
     <>

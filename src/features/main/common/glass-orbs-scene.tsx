@@ -1058,6 +1058,11 @@ export interface GlassOrbsSceneProps {
    * 하단 variant(img_frame) 등에서는 전달 생략.
    */
   lockTextureAtScrollYRef?: RefObject<number | null>;
+  /**
+   * `img_hero` 가 `object-fit: cover` 로 올라가는 DOM 박스(히어로 `section` 등). cover 스케일을
+   * 뷰포트가 아닌 이 박스에 맞춰 Next/Image DOM 과 전송 캔버스를 1:1로 맞춘다. 미지정 시 뷰포트.
+   */
+  transmissionSourceLayoutRef?: RefObject<HTMLElement | null>;
 }
 
 const DEFAULT_SOURCE_IMAGE = "/main/img_hero.webp";
@@ -1105,6 +1110,7 @@ export const GlassOrbsScene = ({
   journeyProgressRef,
   mouseTiltHoldDocYRef,
   lockTextureAtScrollYRef,
+  transmissionSourceLayoutRef,
   onFirstFrameReady,
 }: GlassOrbsSceneProps) => {
   const [config, setConfig] = useState<SceneConfig>(DEFAULT_CONFIG);
@@ -1113,6 +1119,7 @@ export const GlassOrbsScene = ({
   const isHeroSource = sourceImageUrl.includes("img_hero");
 
   const midX = (config.orb1OffsetX + config.orb2OffsetX) / 2;
+  const sceneWrapRef = useRef<HTMLDivElement>(null);
   const introMotionRef = useRef<IntroMotion>({
     active: false,
     orb1X: config.orb1OffsetX,
@@ -1139,6 +1146,8 @@ export const GlassOrbsScene = ({
       centerOffsetXPx: config.transmissionOffsetXPx,
       centerOffsetYPx: config.transmissionOffsetYPx,
       lockTextureAtScrollYRef,
+      sourceLayoutRef: transmissionSourceLayoutRef,
+      sampleViewportRef: sceneWrapRef,
     },
   );
 
@@ -1256,7 +1265,7 @@ export const GlassOrbsScene = ({
 
   return (
     <>
-      <div className={styles.sceneWrap} aria-hidden>
+      <div ref={sceneWrapRef} className={styles.sceneWrap} aria-hidden>
         <Canvas
           key="shinsegae-glass-canvas"
           dpr={CANVAS_DPR}

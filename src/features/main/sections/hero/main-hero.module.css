@@ -68,7 +68,8 @@
   left: 0;
   right: 0;
   bottom: 2.5rem;
-  z-index: 6;
+  /* section 내부 층만 정렬(타이틀·배경 위). 메인 z 스택에선 .heroBaseLayer(z:0) 가 글래스·foreground 아래. */
+  z-index: 1;
   width: 100%;
   display: flex;
   justify-content: center;

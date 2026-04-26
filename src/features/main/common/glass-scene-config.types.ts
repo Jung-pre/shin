@@ -183,11 +183,12 @@ export const DEFAULT_CONFIG: SceneConfig = {
   mouseTiltScrollFadeVh: 1,
 
   transmissionFit: "cover",
-  transmissionZoom: 1.32,
+  transmissionZoom: 1.06,
   transmissionSrcFocusX: 0.505,
   transmissionSrcFocusY: 0.25,
   transmissionSrcFocusYFrame: 0.505,
-  transmissionOffsetXPx: 38,
+  /** 히어로 section 등 레이아웃 박스 cover 정합 뒤 남는 미세 오차만 px 보정 */
+  transmissionOffsetXPx: 0,
   transmissionOffsetYPx: 0,
 };
 
