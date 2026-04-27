@@ -38,7 +38,7 @@
       transparent 1px,
       transparent var(--grid-pitch)
     ),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cg transform='translate(133.03 139.5)' opacity='0.3'%3E%3Cpath d='M33.9321 10.4983C33.9321 16.2984 29.2305 21 23.4304 21C17.6303 21 12.9287 16.2984 12.9287 10.4983C12.9287 4.69821 17.6303 0 23.4304 0C29.2305 0 33.9321 4.70159 33.9321 10.4983Z' fill='%23CBD6D7'/%3E%3Cpath d='M21.0034 10.4983C21.0034 16.2984 16.3018 21 10.5017 21C4.70159 21 0 16.2984 0 10.4983C0 4.69821 4.70159 0 10.5017 0C16.3018 0 21.0034 4.70159 21.0034 10.4983Z' fill='%23CFBFD2'/%3E%3C/g%3E%3C/svg%3E");
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cg transform='translate(133.03 139.5)' opacity='0.55'%3E%3Cpath d='M33.9318 10.4983C33.9318 16.2984 29.2302 21 23.4302 21C17.6301 21 12.9285 16.2984 12.9285 10.4983C12.9285 4.69821 17.6301 0 23.4302 0C29.2302 0 33.9318 4.70159 33.9318 10.4983Z' fill='%23CBD6D7'/%3E%3Cpath d='M21.0034 10.4983C21.0034 16.2984 16.3018 21 10.5017 21C4.70159 21 0 16.2984 0 10.4983C0 4.69821 4.70159 0 10.5017 0C16.3018 0 21.0034 4.70159 21.0034 10.4983Z' fill='%23CFBFD2'/%3E%3C/g%3E%3C/svg%3E");
   background-size: var(--grid-pitch) var(--grid-pitch), var(--grid-pitch) var(--grid-pitch), var(--logo-tile) var(--logo-tile);
   background-repeat: repeat, repeat, repeat;
   background-position:

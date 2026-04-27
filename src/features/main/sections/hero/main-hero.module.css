@@ -1,8 +1,7 @@
 /* --- 히어로 섹션 레이아웃 --- */
 @font-face {
-  font-family: "Mbc1961GLM";
-  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2304-01@1.0/MBC1961GulimM.woff2")
-    format("woff2");
+  font-family: "M";
+  src: url("https://font.imbc.com/1961/MBC_1961_M.woff") format("woff");
   font-weight: normal;
   font-display: swap;
 }
@@ -42,7 +41,7 @@
   width: 100%;
   max-width: 100%;
   text-align: center;
-  font-family: "Mbc1961GLM", "Pretendard", sans-serif;
+  font-family: "M", "Pretendard", sans-serif;
   font-size: 21.875rem;
   font-style: normal;
   font-weight: 400;
