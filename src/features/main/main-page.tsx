@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { GridBackground } from "@/features/main/common/grid-background";
 import { SvgGlassOverlay } from "@/features/main/common/svg-glass-overlay";
+import { GridBackground } from "@/features/main/common/grid-background";
 import { MainHero, HeroQuickBar } from "@/features/main/sections/hero/main-hero";
 import heroSectionStyles from "./sections/hero/main-hero.module.css";
 import type { Locale } from "@/shared/config/i18n";
@@ -73,6 +73,12 @@ const GlassOrbsScene = dynamic(
 
 const CssGlassScene = dynamic(
   () => import("@/features/main/common/css-glass-scene").then((mod) => mod.CssGlassScene),
+  { ssr: false },
+);
+
+const HollowCylinderScene = dynamic(
+  () =>
+    import("@/features/main/common/hollow-cylinder-scene").then((m) => m.HollowCylinderScene),
   { ssr: false },
 );
 
@@ -547,8 +553,11 @@ export const MainPage = ({
 
   return (
     <main ref={mainRef} className={styles.root}>
-      <div className={styles.gridFixed} aria-hidden>
+      <div className={clsx(styles.gridFixed, styles.gridSvgMaskedHidden)} aria-hidden>
         <GridBackground visible={isGridVisible} />
+      </div>
+      <div className={styles.cylinderBackdrop} aria-hidden>
+        <HollowCylinderScene visible={isGridVisible} />
       </div>
       <div className={styles.heroBaseLayer}>
         <MainHero titleRef={heroTitleRef} sectionRef={heroSectionRef} />

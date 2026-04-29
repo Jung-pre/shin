@@ -20,11 +20,9 @@ const VERT = /* glsl */ `
 
   void main() {
     vUv = uv;
-
     float theta = position.x / uRadius;
     float curvedX = sin(theta) * uRadius;
     float curvedZ = (cos(theta) - 1.0) * uRadius;
-
     vec3 bentPos = vec3(curvedX, position.y, curvedZ);
     vec3 pos = mix(position, bentPos, uBendAmount);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
@@ -51,48 +49,52 @@ const IMAGE_FRAG = /* glsl */ `
   uniform float uWaterTintMix;
   varying vec2 vUv;
 
-  float roundedRectMask(vec2 uv, float radius, float aspect) {
-    if (radius <= 0.0001) return 1.0;
+  float roundedRectSDF(vec2 uv, float radius, float aspect) {
     vec2 p = uv * 2.0 - 1.0;
     p.x *= aspect;
     vec2 b = vec2(aspect, 1.0) - radius;
     vec2 q = abs(p) - b;
-    float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
-    return 1.0 - smoothstep(0.0, 0.012, d);
+    return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
   }
 
   void main() {
     vec2 uv = vUv;
     uv.y -= clamp(uVelocity * 0.04, -0.06, 0.06);
 
+    float sdf = roundedRectSDF(vUv, uCornerRadius, uAspect);
+    float mask = 1.0 - smoothstep(-0.006, 0.003, sdf);
+    float edgeDist = -sdf;
+
+    /* ── 프리즘: 가장자리 크로매틱 에버레이션 (수평 분산) — 현재 비활성 ── */
+    // float edgeMask = smoothstep(0.10, 0.0, edgeDist);
+    // float ca = edgeMask * 0.007;
+    // float r = texture2D(uMap, clamp(uv + vec2(ca, 0.0), 0.001, 0.999)).r;
+    // float g = texture2D(uMap, clamp(uv, 0.001, 0.999)).g;
+    // float b = texture2D(uMap, clamp(uv - vec2(ca, 0.0), 0.001, 0.999)).b;
+    // vec3 img = mix(vec3(0.05), vec3(r, g, b), uHasMap);
+
     vec4 sampled = texture2D(uMap, clamp(uv, vec2(0.001), vec2(0.999)));
-    vec4 placeholder = vec4(0.78, 0.75, 0.82, 1.0);
-    vec4 col = mix(placeholder, sampled, uHasMap);
-    float luma = dot(col.rgb, vec3(0.2126, 0.7152, 0.0722));
-    col.rgb = mix(vec3(luma), col.rgb, uImageSaturation);
-    col.rgb = (col.rgb - 0.5) * uImageContrast + 0.5;
-    col.rgb *= uImageBrightness;
-    col.rgb = clamp(col.rgb, 0.0, 1.0);
+    vec3 img = mix(vec3(0.05), sampled.rgb, uHasMap);
 
-    vec2 centered = vUv * 2.0 - 1.0;
-    float edgeDistance = min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y));
-    float edge = 1.0 - smoothstep(0.0, max(0.001, uFrameThickness), edgeDistance);
-    float rim = smoothstep(0.010, 0.0, edgeDistance);
-    float surface = smoothstep(1.15, 0.0, length(centered));
-    float topGloss = smoothstep(0.62, 1.0, vUv.y) * smoothstep(1.0, 0.18, vUv.x);
-    float softDiagonal = smoothstep(0.085, 0.0, abs((vUv.x + vUv.y) - 1.16));
-    float microSheen = (sin((vUv.x * 7.0 + vUv.y * 5.0) * 3.14159) * 0.5 + 0.5)
-      * uWaterDistort * surface;
+    /* ── 색 보정 ── */
+    float luma = dot(img, vec3(0.2126, 0.7152, 0.0722));
+    img = mix(vec3(luma), img, uImageSaturation);
+    img = (img - 0.5) * uImageContrast + 0.5;
+    img *= uImageBrightness;
+    img = clamp(img, 0.0, 1.0);
 
-    col.rgb = mix(col.rgb, uWaterTint, clamp(uWaterTintMix * (0.08 + edge * 0.18), 0.0, 0.45));
-    col.rgb *= 1.0 - edge * 0.08 * uFrameStrength;
-    col.rgb += vec3(rim * 0.22 + topGloss * 0.10 + softDiagonal * 0.06 + microSheen * 0.08)
-      * uFrameShine * uFrameStrength;
+    /* ── 유리 표면 리플렉션 — 현재 비활성 ── */
+    // float topSheen = smoothstep(0.6, 0.95, vUv.y)
+    //   * smoothstep(0.82, 0.10, abs(vUv.x - 0.4) * 2.0) * 0.07;
+    // float diagGloss = smoothstep(0.035, 0.0, abs((vUv.x * 0.5 + vUv.y) - 0.76)) * 0.04;
+    // img += vec3(topSheen + diagGloss) * uFrameShine * mask;
 
+    /* ── 디밍 + 페이드 ── */
     float dim = mix(uSideDim, 1.0, uFade);
-    col.rgb *= dim;
-    col.a *= uFade * roundedRectMask(vUv, uCornerRadius, uAspect);
-    gl_FragColor = col;
+    img *= dim;
+
+    float texAlpha = mix(1.0, sampled.a, uHasMap);
+    gl_FragColor = vec4(img, mask * uFade * texAlpha);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -224,24 +226,10 @@ export function CylinderSlideMesh({
     uniforms.uAspect.value = width / height;
     invalidate();
   }, [
-    height,
-    imageBrightness,
-    imageContrast,
-    imageSaturation,
-    invalidate,
-    screenCornerRadius,
-    uniforms,
-    waterChromaticAberration,
-    waterDistort,
-    waterFrameShine,
-    waterFrameStrength,
-    waterFrameThickness,
-    waterInnerDistort,
-    waterTintB,
-    waterTintG,
-    waterTintMix,
-    waterTintR,
-    width,
+    height, imageBrightness, imageContrast, imageSaturation, invalidate,
+    screenCornerRadius, uniforms, waterChromaticAberration, waterDistort,
+    waterFrameShine, waterFrameStrength, waterFrameThickness, waterInnerDistort,
+    waterTintB, waterTintG, waterTintMix, waterTintR, width,
   ]);
 
   useFrame(() => {

@@ -19,6 +19,23 @@
   overflow: hidden;
 }
 
+/* SVG 그리드 — DOM 유지 / 레이아웃 동일, 화면만 숨김 (위 레이어 원기둥 R3F 노출) */
+.gridSvgMaskedHidden {
+  opacity: 0;
+}
+
+/* 속 빈 원기둥 와이어 — gridFixed 다음에 깔려 SVG 위에 그려짐 */
+.cylinderBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 /*
  * 글래스 오브 WebGL — 뷰포트에 고정(position: fixed).
  * 히어로에서 벗어나면 JS(opacity) 로 페이드아웃. z:3 으로 히어로 타이틀 위에 겹침.

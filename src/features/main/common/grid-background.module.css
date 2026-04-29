@@ -26,7 +26,10 @@
 .line {
   fill: none;
   stroke: rgba(255, 255, 255, 0.34);
+  stroke-linecap: round;
+  stroke-linejoin: round;
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 /* 격자 꼭지점 십자(10×10 viewBox) — 2 line 간격마다 1개 */
@@ -37,7 +40,10 @@
 .cornerTickMark {
   fill: none;
   stroke: #fff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .lineLayer {

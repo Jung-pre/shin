@@ -92,6 +92,50 @@ const ROTATION_SLIDES: readonly (CylinderSlide & {
 
 const ROTATION_SLIDES_COUNT = ROTATION_SLIDES.length;
 
+/** 각 사진이 중앙에 도달했을 때 고정되는 스크롤 거리(vh) */
+const HOLD_VH = 20;
+/** 총 섹션 높이(vh) = 기존(N×100) + 사진별 홀드(N×HOLD_VH) */
+const SECTION_VH = ROTATION_SLIDES_COUNT * 100 + ROTATION_SLIDES_COUNT * HOLD_VH;
+
+/* ── 진행도 리맵: raw scroll progress → rotation progress (홀드 구간 포함) ── */
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+type Keyframe = [raw: number, rot: number];
+
+function buildHoldKeyframes(count: number, holdVh: number, totalVh: number): Keyframe[] {
+  const transVh = (totalVh - count * holdVh) / Math.max(count - 1, 1);
+  const keys: Keyframe[] = [];
+  let rawPos = 0;
+  for (let i = 0; i < count; i++) {
+    const rotVal = count > 1 ? i / (count - 1) : 0;
+    keys.push([rawPos / totalVh, rotVal]);
+    rawPos += holdVh;
+    keys.push([rawPos / totalVh, rotVal]);
+    if (i < count - 1) rawPos += transVh;
+  }
+  return keys;
+}
+
+const REMAP_KEYS = buildHoldKeyframes(ROTATION_SLIDES_COUNT, HOLD_VH, SECTION_VH);
+
+function remapProgress(raw: number, keys: Keyframe[]): number {
+  if (raw <= keys[0][0]) return keys[0][1];
+  if (raw >= keys[keys.length - 1][0]) return keys[keys.length - 1][1];
+  for (let i = 1; i < keys.length; i++) {
+    if (raw <= keys[i][0]) {
+      const [x0, y0] = keys[i - 1];
+      const [x1, y1] = keys[i];
+      if (x1 <= x0) return y0;
+      const t = easeInOutCubic((raw - x0) / (x1 - x0));
+      return y0 + t * (y1 - y0);
+    }
+  }
+  return keys[keys.length - 1][1];
+}
+
 const clamp = (value: number, min: number, max: number) => {
   return Math.min(max, Math.max(min, value));
 };
@@ -151,9 +195,10 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
       anticipatePin: 1,
       invalidateOnRefresh: true,
       onUpdate: (self) => {
-        progressRef.current = self.progress;
+        const rp = remapProgress(self.progress, REMAP_KEYS);
+        progressRef.current = rp;
         const idx = clamp(
-          Math.floor(self.progress * ROTATION_SLIDES_COUNT),
+          Math.round(rp * (ROTATION_SLIDES_COUNT - 1)),
           0,
           ROTATION_SLIDES_COUNT - 1,
         );
@@ -210,7 +255,7 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
       ref={setSectionRef}
       className={styles.section}
       style={{
-        height: `${ROTATION_SLIDES_COUNT * 100}vh`,
+        height: `${SECTION_VH}vh`,
         // canvasWrap mask 곡률(%) — 흰 비네 오버레이와 무관(그 레이어는 사용하지 않음)
         ["--slide-vignette" as string]: `${tuning.vignetteWidth}%`,
         ["--slide-vignette-y" as string]: `${tuning.vignetteHeight}%`,

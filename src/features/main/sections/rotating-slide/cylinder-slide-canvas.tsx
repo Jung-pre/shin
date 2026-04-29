@@ -13,7 +13,7 @@ import { Group, PerspectiveCamera } from "three";
 import { CylinderSlideMesh } from "./cylinder-slide-mesh";
 import { useScrollVelocity } from "./use-scroll-velocity";
 
-const POINTER_TILT_MAX_RAD = (6.9 * Math.PI) / 180;
+const POINTER_TILT_MAX_RAD = (2.3 * Math.PI) / 180;
 const POINTER_TILT_LERP = 8;
 
 export interface CylinderSlide {
@@ -251,32 +251,7 @@ function CylinderGroup({
     invalidate();
   }, [invalidate, isActive]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    let rafId = 0;
-
-    const handleMouseMove = (event: MouseEvent) => {
-      latestPointerRef.current.x = event.clientX;
-      latestPointerRef.current.y = event.clientY;
-      if (!isActiveRef.current || rafId) return;
-      rafId = window.requestAnimationFrame(() => {
-        rafId = 0;
-        const w = window.innerWidth || 1;
-        const h = window.innerHeight || 1;
-        const nx = (latestPointerRef.current.x / w) * 2 - 1;
-        const ny = (latestPointerRef.current.y / h) * 2 - 1;
-        pointerTiltTargetRef.current.x = -ny * POINTER_TILT_MAX_RAD;
-        pointerTiltTargetRef.current.y = nx * POINTER_TILT_MAX_RAD;
-        invalidate();
-      });
-    };
-
-    window.addEventListener("mousemove", handleMouseMove, { passive: true });
-    return () => {
-      window.removeEventListener("mousemove", handleMouseMove);
-      if (rafId) window.cancelAnimationFrame(rafId);
-    };
-  }, [invalidate]);
+  // 마우스 반응 틸트 제거됨 — 스크롤 Y 이동만 유지
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -312,24 +287,16 @@ function CylinderGroup({
     //   원통 전체를 위로 올려(-i × cardYStep) 활성 카드가 항상 같은 화면 위치를 유지.
     const tilt = tiltRef.current;
     if (tilt) {
-      const targetX = tiltRadRef.current + pointerTiltTargetRef.current.x;
-      const targetY = pointerTiltTargetRef.current.y;
-      const dx = targetX - tilt.rotation.x;
-      const dy = targetY - tilt.rotation.y;
-      const lerp = 1 - Math.exp(-delta * POINTER_TILT_LERP);
-      tilt.rotation.x += dx * lerp;
-      tilt.rotation.y += dy * lerp;
-      // progress 가 i/(N-1) 일 때 활성 카드의 local Y = i * cardYStep
-      // → 월드 Y 를 -p*(N-1)*cardYStep 만큼 이동하면 활성 카드 Y=0 유지.
+      const tiltLerp = 1 - Math.exp(-delta * POINTER_TILT_LERP);
+      const dxTilt = tiltRadRef.current - tilt.rotation.x;
+      tilt.rotation.x += dxTilt * tiltLerp;
+      tilt.rotation.y = 0;
+
       tilt.position.y = -p * (slides.length - 1) * cardYStep;
     }
 
-    const tiltMoving = tilt
-      ? Math.abs(pointerTiltTargetRef.current.x + tiltRadRef.current - tilt.rotation.x) > 0.0002 ||
-        Math.abs(pointerTiltTargetRef.current.y - tilt.rotation.y) > 0.0002
-      : false;
     const velocityMoving = Math.abs(velocityRef.current) > 0.001;
-    if (isActive && (progressChanged || tiltMoving || velocityMoving)) {
+    if (isActive && (progressChanged || velocityMoving)) {
       invalidate();
     }
   });

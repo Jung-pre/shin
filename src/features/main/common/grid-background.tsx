@@ -11,88 +11,23 @@ import {
 } from "react";
 import type { CSSProperties, MutableRefObject } from "react";
 import styles from "./grid-background.module.css";
-
-const CELL_SIZE_REM = 8.75;
-
-const seededNoise = (seed: number) => {
-  const value = Math.sin(seed * 12.9898) * 43758.5453;
-  return value - Math.floor(value);
-};
-
-/**
- * 0 ~ length(뷰의 너비/높이) 구간에 그리드 라인을 둔다.
- * `length % step` 이 0이 아니면 “고정 step으로 쌓다가 0/length에 맞춤”이면
- * viewBox(0,0,…) 안에서 **맨 끝 칸만** 잔여 픽셀로 좁아지는 이슈가 난다.
- * 대상 step(rem 기반 px)으로 칸 *개수*만 잡고, `length`를 n등분해
- * 모든 칸의 픽셀 크기를 동일하게 맞춘다.
- */
-const createStops = (length: number, targetStepPx: number) => {
-  if (length <= 1) return [0, 1];
-  const step = Math.max(1, targetStepPx);
-  const n = Math.max(1, Math.ceil(length / step));
-  return Array.from({ length: n + 1 }, (_, i) => (i * length) / n);
-};
-
-
-const CURVE_SMOOTH = 0.06;
-const SCROLL_IDLE_MS = 300;
-const EPSILON = 0.00035;
-const MODE_SWITCH_DELTA_THRESHOLD = 1.2;
-/**
- * 휨 최대 “깊이”(px) — arc(x) 가 1 인 화면 중앙에서의 Y 방향 변위.
- *   값을 키울수록 전체가 더 강하게 활처럼 휨. (순수 각도 °는 아님, 변위로 체감 조절)
- *   더 휨이 필요하면 이 숫자만 올리면 됨(세로선 pad = 이 값 + 2 자동).
- */
-const CURVE_DEPTH_PX = 124;
-/** 가로 라인 1개당 최대 세그먼트 수 */
-const MAX_SEGMENT_COUNT = 32;
-/**
- * 스크롤이 멈춘 뒤 목표 워프 비율 (target ∈ [-1,1]).
- * 1.0 = 완전 직선으로 복귀 없음(마지막 방향·강도 유지), 0 = 기존처럼 0으로 복귀.
- * 0.72 = 최대 휨의 72% 를 "자세"로 남겨, 제자리(직선)로 완전히 돌아가지 않게 함.
- */
-const WARP_RETAIN = 0.72;
-/**
- * 위/아래 스크롤 방향이 바뀔 때 굽힘 부호를 즉시 뒤집지 않고 이 값으로 보간.
- * (작을수록 더 천천히, 클수록 더 빨리 새 방향에 수렴)
- */
-const WARP_DIR_BLEND = 0.11;
-
-/**
- * SVG 좌표계는 y+ 가 아래 방향이다.
- *
- * 이미지 기준 정의:
- * - 일반: 상단은 아래로, 하단은 위로 약하게 말리는 기본 배럴 곡률
- * - 스크롤 다운: 상단 라인은 일자에 가깝고, 하단으로 갈수록 위로 휨
- * - 스크롤 업: 하단 라인은 일자에 가깝고, 상단으로 갈수록 아래로 휨
- */
-const GRID_WARP_IDLE = 0;
-const GRID_WARP_SCROLL_DOWN = -1;
-const GRID_WARP_SCROLL_UP = 1;
-const GRID_BASE_CURVE_STRENGTH = 0.42;
-const GRID_SCROLL_CURVE_STRENGTH = 0.86;
-
-const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
-
-const getHorizontalCurveWeight = (y: number, height: number, ratio: number) => {
-  const yNorm = clamp01(y / Math.max(1, height));
-  const absRatio = Math.abs(ratio);
-  const easedRatio = Math.pow(absRatio, 0.72);
-  const idleWeight = (0.5 - yNorm) * 2 * GRID_BASE_CURVE_STRENGTH;
-  const scrollWeight =
-    ratio < 0
-      ? -yNorm * GRID_SCROLL_CURVE_STRENGTH
-      : (1 - yNorm) * GRID_SCROLL_CURVE_STRENGTH;
-
-  // ratio≈0 이면 easedRatio≈0 → idle만 (스크롤 쪽 scrollWeight 는 블렌드에 반영되지 않음)
-  return idleWeight + (scrollWeight - idleWeight) * easedRatio;
-};
-
-const getWarpedY = (x: number, y: number, width: number, height: number, ratio: number) => {
-  const xNorm = (x / Math.max(1, width)) * 2 - 1;
-  const arc = Math.max(0, 1 - xNorm * xNorm);
-  return y + arc * CURVE_DEPTH_PX * getHorizontalCurveWeight(y, height, ratio);
-};
+import {
+  CELL_SIZE_REM,
+  createStops,
+  CURVE_DEPTH_PX,
+  CURVE_SMOOTH,
+  EPSILON,
+  getWarpedY,
+  GRID_WARP_IDLE,
+  GRID_WARP_SCROLL_DOWN,
+  GRID_WARP_SCROLL_UP,
+  MAX_SEGMENT_COUNT,
+  MODE_SWITCH_DELTA_THRESHOLD,
+  SCROLL_IDLE_MS,
+  seededNoise,
+  WARP_DIR_BLEND,
+  WARP_RETAIN,
+} from "./grid-background-math";
 
 export type GridBackgroundProps = {
   visible?: boolean;
