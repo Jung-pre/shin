@@ -105,10 +105,6 @@ const TRIGGER_VH = 28;
 const SECTION_VH =
   (ROTATION_SLIDES_COUNT - 1) * (HOLD_VH + TRIGGER_VH) + HOLD_VH;
 
-function easeInOutQuint(t: number): number {
-  return t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2;
-}
-
 /** 각 슬라이드 홀드 중앙 progress 값 */
 function buildHoldCenters(): number[] {
   const n = ROTATION_SLIDES_COUNT;
@@ -154,34 +150,27 @@ function snapToNearestHold(
 }
 
 /**
- * 홀드 구간: 해당 슬라이드 각도 고정.
- * 트리거 구간: 이전→다음 슬라이드 각도를 부드럽게 전환.
+ * 스크롤 progress → 현재 활성 슬라이드 인덱스.
+ * 홀드 구간: 해당 슬라이드.
+ * 트리거 구간: 절반 넘으면 다음 슬라이드.
  */
-function remapSmoothHoldTransition(progress: number): number {
-  const n = ROTATION_SLIDES_COUNT;
-  if (n <= 1) return 0;
-
+function getActiveIndex(progress: number): number {
   const total = SECTION_VH;
-  let u = clamp(progress, 0, 1) * total;
+  const u = clamp(progress, 0, 1) * total;
   let pos = 0;
 
-  for (let i = 0; i < n - 1; i++) {
-    const rotStart = i / (n - 1);
-    const rotEnd = (i + 1) / (n - 1);
+  for (let i = 0; i < ROTATION_SLIDES_COUNT - 1; i++) {
+    const holdEnd = pos + HOLD_VH;
 
-    if (u < pos + HOLD_VH) {
-      return rotStart;
+    if (u < holdEnd) return i;
+    if (u < holdEnd + TRIGGER_VH) {
+      const mid = holdEnd + TRIGGER_VH / 2;
+      return u < mid ? i : i + 1;
     }
-    pos += HOLD_VH;
-    if (u < pos + TRIGGER_VH) {
-      const rawT = TRIGGER_VH > 0 ? (u - pos) / TRIGGER_VH : 1;
-      const e = easeInOutQuint(clamp(rawT, 0, 1));
-      return rotStart + e * (rotEnd - rotStart);
-    }
-    pos += TRIGGER_VH;
+    pos += HOLD_VH + TRIGGER_VH;
   }
 
-  return 1;
+  return ROTATION_SLIDES_COUNT - 1;
 }
 
 const TEXT_TRANSITION = {
@@ -253,12 +242,7 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
       onUpdate: (self) => {
         scrollDirRef.current = self.direction as 1 | -1;
 
-        const rp = remapSmoothHoldTransition(self.progress);
-        const idx = clamp(
-          Math.round(rp * (ROTATION_SLIDES_COUNT - 1)),
-          0,
-          ROTATION_SLIDES_COUNT - 1,
-        );
+        const idx = getActiveIndex(self.progress);
 
         if (idx !== prevIndexRef.current) {
           prevIndexRef.current = idx;

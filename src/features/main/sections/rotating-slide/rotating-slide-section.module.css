@@ -65,7 +65,7 @@
 .copy {
   position: absolute;
   left: 8.13rem;
-  bottom: 10.13rem;
+  bottom: 8.13rem;
   width: min(43rem, calc(100% - 16.26rem));
   display: flex;
   flex-direction: column;
