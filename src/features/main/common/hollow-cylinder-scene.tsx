@@ -28,11 +28,6 @@ const RAD_PER_SCROLL_PX = 0.0004;
 /** 현재값 → 타겟 보간 계수 (0~1). 낮을수록 관성이 큼 */
 const LERP_FACTOR = 0.08;
 
-/** 스크롤 속도에 비례해 원기둥이 위아래로 밀리는 최대 px */
-const Y_SHIFT_MAX_PX = 60;
-/** Y 이동 보간 계수 */
-const Y_SHIFT_LERP = 0.06;
-
 function readRemPx(): number {
   if (typeof window === "undefined") return 16;
   return parseFloat(getComputedStyle(document.documentElement).fontSize);
@@ -155,14 +150,10 @@ void main() {
 
 /* ─── R3F components ─────────────────────────────────────────────────── */
 
-/** 스크롤 누적량을 관성 보간으로 Y축 회전 + Y 이동으로 변환 */
-function useScrollMotion(visibleRef: MutableRefObject<boolean>) {
-  const rotTargetRef = useRef(0);
-  const rotCurrentRef = useRef(0);
-
-  const yShiftTargetRef = useRef(0);
-  const yShiftCurrentRef = useRef(0);
-
+/** 스크롤 누적량을 관성 보간으로 Y축 회전 각도(rad)로 변환 — 상한 없이 계속 돈다 */
+function useScrollRotation(visibleRef: MutableRefObject<boolean>) {
+  const targetRef = useRef(0);
+  const currentRef = useRef(0);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -170,24 +161,13 @@ function useScrollMotion(visibleRef: MutableRefObject<boolean>) {
     let previousScrollY = window.scrollY;
 
     const tick = () => {
-      rotCurrentRef.current +=
-        (rotTargetRef.current - rotCurrentRef.current) * LERP_FACTOR;
-      yShiftCurrentRef.current +=
-        (yShiftTargetRef.current - yShiftCurrentRef.current) * Y_SHIFT_LERP;
+      currentRef.current +=
+        (targetRef.current - currentRef.current) * LERP_FACTOR;
 
-      // 스크롤 멈추면 Y shift 타겟을 0으로 되돌린다
-      yShiftTargetRef.current *= 0.92;
-
-      const rotDone =
-        Math.abs(rotTargetRef.current - rotCurrentRef.current) < 1e-5;
-      const yDone =
-        Math.abs(yShiftTargetRef.current - yShiftCurrentRef.current) < 0.05;
-
-      if (!rotDone || !yDone) {
+      if (Math.abs(targetRef.current - currentRef.current) > 1e-5) {
         rafRef.current = requestAnimationFrame(tick);
       } else {
-        rotCurrentRef.current = rotTargetRef.current;
-        yShiftCurrentRef.current = yShiftTargetRef.current;
+        currentRef.current = targetRef.current;
         isRunning = false;
       }
     };
@@ -211,11 +191,7 @@ function useScrollMotion(visibleRef: MutableRefObject<boolean>) {
 
       if (Math.abs(delta) < 0.2) return;
 
-      rotTargetRef.current += delta * RAD_PER_SCROLL_PX;
-
-      const normalizedDelta = Math.sign(delta) * Math.min(Math.abs(delta) / 8, 1);
-      yShiftTargetRef.current = normalizedDelta * Y_SHIFT_MAX_PX;
-
+      targetRef.current += delta * RAD_PER_SCROLL_PX;
       startLoop();
     };
 
@@ -226,19 +202,17 @@ function useScrollMotion(visibleRef: MutableRefObject<boolean>) {
     };
   }, [visibleRef]);
 
-  return { rotationRef: rotCurrentRef, yShiftRef: yShiftCurrentRef };
+  return currentRef;
 }
 
 function CylinderGridMesh({
   remPx,
   reducedMotionRef,
   scrollRotationRef,
-  scrollYShiftRef,
 }: {
   remPx: number;
   reducedMotionRef: MutableRefObject<boolean>;
   scrollRotationRef: MutableRefObject<number>;
-  scrollYShiftRef: MutableRefObject<number>;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const meshRef = useRef<THREE.Mesh>(null);
@@ -307,7 +281,6 @@ function CylinderGridMesh({
 
     if (meshRef.current) {
       meshRef.current.rotation.y = scrollRotationRef.current;
-      meshRef.current.position.y = scrollYShiftRef.current;
     }
   });
 
@@ -344,8 +317,7 @@ export function HollowCylinderScene({ visible = true }: HollowCylinderSceneProps
     visibleRef.current = visible;
   }, [visible]);
 
-  const { rotationRef: scrollRotationRef, yShiftRef: scrollYShiftRef } =
-    useScrollMotion(visibleRef);
+  const scrollRotationRef = useScrollRotation(visibleRef);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -376,7 +348,6 @@ export function HollowCylinderScene({ visible = true }: HollowCylinderSceneProps
           remPx={remPx}
           reducedMotionRef={reducedMotionRef}
           scrollRotationRef={scrollRotationRef}
-          scrollYShiftRef={scrollYShiftRef}
         />
       </Suspense>
     </Canvas>

@@ -92,53 +92,97 @@ const ROTATION_SLIDES: readonly (CylinderSlide & {
 
 const ROTATION_SLIDES_COUNT = ROTATION_SLIDES.length;
 
-/** 각 사진이 중앙에 도달했을 때 고정되는 스크롤 거리(vh) */
-const HOLD_VH = 20;
-/** 총 섹션 높이(vh) = 기존(N×100) + 사진별 홀드(N×HOLD_VH) */
-const SECTION_VH = ROTATION_SLIDES_COUNT * 100 + ROTATION_SLIDES_COUNT * HOLD_VH;
-
-/* ── 진행도 리맵: raw scroll progress → rotation progress (홀드 구간 포함) ── */
-
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-type Keyframe = [raw: number, rot: number];
-
-function buildHoldKeyframes(count: number, holdVh: number, totalVh: number): Keyframe[] {
-  const transVh = (totalVh - count * holdVh) / Math.max(count - 1, 1);
-  const keys: Keyframe[] = [];
-  let rawPos = 0;
-  for (let i = 0; i < count; i++) {
-    const rotVal = count > 1 ? i / (count - 1) : 0;
-    keys.push([rawPos / totalVh, rotVal]);
-    rawPos += holdVh;
-    keys.push([rawPos / totalVh, rotVal]);
-    if (i < count - 1) rawPos += transVh;
-  }
-  return keys;
-}
-
-const REMAP_KEYS = buildHoldKeyframes(ROTATION_SLIDES_COUNT, HOLD_VH, SECTION_VH);
-
-function remapProgress(raw: number, keys: Keyframe[]): number {
-  if (raw <= keys[0][0]) return keys[0][1];
-  if (raw >= keys[keys.length - 1][0]) return keys[keys.length - 1][1];
-  for (let i = 1; i < keys.length; i++) {
-    if (raw <= keys[i][0]) {
-      const [x0, y0] = keys[i - 1];
-      const [x1, y1] = keys[i];
-      if (x1 <= x0) return y0;
-      const t = easeInOutCubic((raw - x0) / (x1 - x0));
-      return y0 + t * (y1 - y0);
-    }
-  }
-  return keys[keys.length - 1][1];
-}
-
 const clamp = (value: number, min: number, max: number) => {
   return Math.min(max, Math.max(min, value));
 };
+
+/** 슬라이드 i 에서 각도 고정으로 머무는 스크롤량(vh) */
+const HOLD_VH = 85;
+/** i→i+1 전환 구간(vh). 이 스크롤 구간에서 회전을 부드럽게 보간 */
+const TRIGGER_VH = 28;
+
+/** 총 높이 = (N-1)×(홀드+트리거) + 마지막 홀드 */
+const SECTION_VH =
+  (ROTATION_SLIDES_COUNT - 1) * (HOLD_VH + TRIGGER_VH) + HOLD_VH;
+
+function easeInOutQuint(t: number): number {
+  return t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2;
+}
+
+/** 각 슬라이드 홀드 중앙 progress 값 */
+function buildHoldCenters(): number[] {
+  const n = ROTATION_SLIDES_COUNT;
+  const total = SECTION_VH;
+  const pts: number[] = [];
+  let pos = 0;
+  for (let i = 0; i < n; i++) {
+    pts.push((pos + HOLD_VH / 2) / total);
+    if (i < n - 1) pos += HOLD_VH + TRIGGER_VH;
+  }
+  return pts;
+}
+
+const HOLD_CENTERS = buildHoldCenters();
+
+/**
+ * 홀드 구간: 스냅 없이 현재 위치 유지 (스크롤이 그냥 끌고 감).
+ * 트리거 구간: 스크롤 방향에 따라 다음/이전 슬라이드로 완성.
+ */
+function snapToNearestHold(
+  progress: number,
+  direction: 1 | -1,
+): number {
+  const total = SECTION_VH;
+  const u = clamp(progress, 0, 1) * total;
+  let pos = 0;
+
+  for (let i = 0; i < ROTATION_SLIDES_COUNT - 1; i++) {
+    const holdEnd = pos + HOLD_VH;
+
+    if (u < holdEnd) {
+      return progress;
+    }
+    if (u < holdEnd + TRIGGER_VH) {
+      return direction === 1
+        ? HOLD_CENTERS[i + 1]
+        : HOLD_CENTERS[i];
+    }
+    pos += HOLD_VH + TRIGGER_VH;
+  }
+
+  return progress;
+}
+
+/**
+ * 홀드 구간: 해당 슬라이드 각도 고정.
+ * 트리거 구간: 이전→다음 슬라이드 각도를 부드럽게 전환.
+ */
+function remapSmoothHoldTransition(progress: number): number {
+  const n = ROTATION_SLIDES_COUNT;
+  if (n <= 1) return 0;
+
+  const total = SECTION_VH;
+  let u = clamp(progress, 0, 1) * total;
+  let pos = 0;
+
+  for (let i = 0; i < n - 1; i++) {
+    const rotStart = i / (n - 1);
+    const rotEnd = (i + 1) / (n - 1);
+
+    if (u < pos + HOLD_VH) {
+      return rotStart;
+    }
+    pos += HOLD_VH;
+    if (u < pos + TRIGGER_VH) {
+      const rawT = TRIGGER_VH > 0 ? (u - pos) / TRIGGER_VH : 1;
+      const e = easeInOutQuint(clamp(rawT, 0, 1));
+      return rotStart + e * (rotEnd - rotStart);
+    }
+    pos += TRIGGER_VH;
+  }
+
+  return 1;
+}
 
 const TEXT_TRANSITION = {
   duration: 0.46,
@@ -163,16 +207,16 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
   );
   const pinRef = useRef<HTMLDivElement>(null);
 
-  // progress 는 ref + state 투트랙:
-  //   - ref: 매 프레임 Canvas 내부 useFrame 이 읽어가는 최신값 (React 리렌더 없이 동기화).
-  //   - state: 텍스트 패널(DOM) 의 activeIndex 계산용. 카드 경계 넘어갈 때만 갱신.
   const progressRef = useRef(0);
   const [activeIndex, setActiveIndex] = useState(0);
+  const prevIndexRef = useRef(0);
+  const rotTweenRef = useRef<gsap.core.Tween | null>(null);
 
-  // 섹션 가시성 — 밖에 있을 때 Canvas 프레임 정지.
   const [isActive, setIsActive] = useState(false);
 
   const reduceMotion = useReducedMotion();
+
+  const scrollDirRef = useRef<1 | -1>(1);
 
   // 튜닝 파라미터 (원통 크기/카메라/페이드 등). localStorage 로 영속.
   const { tuning, update, reset } = useRotatingSlideTuning();
@@ -194,15 +238,41 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
       pinSpacing: true,
       anticipatePin: 1,
       invalidateOnRefresh: true,
+      ...(reduceMotion
+        ? {}
+        : {
+            snap: {
+              snapTo: (val: number) =>
+                snapToNearestHold(val, scrollDirRef.current),
+              duration: 0.4,
+              ease: "power3.out",
+              inertia: false,
+              delay: 0,
+            },
+          }),
       onUpdate: (self) => {
-        const rp = remapProgress(self.progress, REMAP_KEYS);
-        progressRef.current = rp;
+        scrollDirRef.current = self.direction as 1 | -1;
+
+        const rp = remapSmoothHoldTransition(self.progress);
         const idx = clamp(
           Math.round(rp * (ROTATION_SLIDES_COUNT - 1)),
           0,
           ROTATION_SLIDES_COUNT - 1,
         );
-        setActiveIndex((prev) => (prev === idx ? prev : idx));
+
+        if (idx !== prevIndexRef.current) {
+          prevIndexRef.current = idx;
+          setActiveIndex(idx);
+
+          const target = idx / (ROTATION_SLIDES_COUNT - 1);
+          rotTweenRef.current?.kill();
+          rotTweenRef.current = gsap.to(progressRef, {
+            current: target,
+            duration: 0.9,
+            ease: "power2.out",
+            overwrite: true,
+          });
+        }
       },
     });
 
@@ -225,8 +295,9 @@ export const RotatingSlideSection = forwardRef<HTMLElement, object>(function Rot
     return () => {
       st.kill();
       fadeOut.kill();
+      rotTweenRef.current?.kill();
     };
-  }, []);
+  }, [reduceMotion]);
 
   // 섹션 가시성 감지 — 뷰포트에 진입·퇴장 시 isActive 토글.
   //   - rootMargin 을 100vh 양쪽으로 확장해 진입 직전에 Canvas 가 준비되도록 워밍업.
